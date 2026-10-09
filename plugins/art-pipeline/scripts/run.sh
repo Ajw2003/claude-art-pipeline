@@ -3,7 +3,7 @@
 # Python interpreter and hands the event name + stdin payload to hook.py. Everything else
 # lives in hook.py; this file's only job is finding an interpreter that actually runs code.
 #
-# Ported from prompt-workshop's, itself from house-rules' scripts/run.sh (see that file for the full rationale on
+# Ported from Ajw2003/AjsClaudeCodeTools' prompt-workshop, itself from house-rules' scripts/run.sh (see that file for the full rationale on
 # why this probes instead of trusting `command -v`, and why word-splitting is avoided). Only
 # the env var names and the per-event fallback messages differ.
 #

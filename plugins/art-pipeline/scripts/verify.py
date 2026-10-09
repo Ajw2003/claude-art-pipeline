@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """verify.py - proves art-pipeline's hooks do what they claim.
 
-    python claude-art-pipeline/plugins/art-pipeline/scripts/verify.py
+    python plugins/art-pipeline/scripts/verify.py
 
 Numbered PASS/FAIL lines, exit 0 on all-pass / 1 on any failure. Stdlib only. Builds throwaway
 git repos with subprocess git.

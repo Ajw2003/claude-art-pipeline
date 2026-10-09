@@ -1,14 +1,28 @@
 # art-pipeline
 
-STATUS: v0.1. Offshoot of the `house-rules` plugin formula (one `run.sh` shim, one stdlib Python
-file). Makes game art by code - concept, model, rig, animation - and never calls a model done
+STATUS: v0.1. A Claude Code plugin, split out of
+[Ajw2003/AjsClaudeCodeTools](https://github.com/Ajw2003/AjsClaudeCodeTools) (same shape as its
+`house-rules` plugin: one `run.sh` shim, one stdlib Python file). Makes game art by code - concept, model, rig, animation - and never calls a model done
 until someone has looked at it beside its concept. The skills (under
 `plugins/art-pipeline/skills/`) carry the method; the hooks here carry the gate.
 
 ## Install
 
-    claude plugin marketplace add Ajw2003/AjsClaudeCodeTools
-    claude plugin install art-pipeline@aj-house-rules
+    claude plugin marketplace add Ajw2003/claude-art-pipeline
+    claude plugin install art-pipeline@claude-art-pipeline
+
+Update later with `claude plugin marketplace update claude-art-pipeline` then
+`claude plugin update art-pipeline@claude-art-pipeline`. Restart Claude Code after either.
+
+## Use
+
+In any Claude Code session, type
+
+    /art-pipeline:art-pipeline make a low-poly lantern prop for my game
+
+or just ask for a model, character or prop - the skill also loads on its own when the request
+fits. The renders it uses need Blender's Python module; the skill's
+`scripts/setup_bpy.sh` installs it. The review gate (below) is always on once installed.
 
 ## The gate
 
@@ -44,5 +58,5 @@ loudly.
 `ART_PIPELINE=off` - the gate says it is off and does not check. `ART_PIPELINE_PYTHON` picks the
 interpreter, `ART_PIPELINE_DEBUG=1` traces `run.sh`.
 
-Verify: `python claude-art-pipeline/plugins/art-pipeline/scripts/verify.py`. Design notes:
-[docs/offshoots-plan.md](../docs/offshoots-plan.md).
+Verify: `python plugins/art-pipeline/scripts/verify.py` (CI runs it on every push). Design
+notes: `docs/offshoots-plan.md` in Ajw2003/AjsClaudeCodeTools.
