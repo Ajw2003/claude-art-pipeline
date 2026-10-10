@@ -35,6 +35,8 @@ trim stays on the same shell.
 - Heat weighting, then rules per part: rigid props, parts limited to named bones, a skirt rule that
   hands weight to the thighs below the hip (without it a lifted knee goes through a robe).
 - A thing that must come off later (a hat, a helmet, a lantern) gets its own rigid bone.
+- One material slot means per-player colour needs a baked dye mask (white where dyed), imported
+  linear.
 
 ## Clips
 
