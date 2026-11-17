@@ -302,6 +302,7 @@ def bash_pre(root, gitdir, p, cmd):
             for it in (rec or {}).get("items", []):
                 if any(t.lower() in cmd.lower() for t in it["match"]):
                     stale += artlib.check_state(root, cfg, led, it, gated_cmd=cmd)[1]
+        stale = list(dict.fromkeys(stale))   # two approvals of one item give one reason
         if stale:
             artlib.save_ledger(path, led)
             return ("this command shows or exports art that has not passed its check: %s. A movie or "
@@ -422,8 +423,8 @@ def after_repo(root, gitdir, p):
         out = "\n".join(str(res.get(k) or "") for k in ("stdout", "stderr")) if isinstance(res, dict) else \
             (res if isinstance(res, str) else "")
         verdict = artlib.check_verdict(artlib.check_entries(cmd, cfg), out)
-        named = [it for _sid, rec, _pr in approvals if rec for it in rec["items"]
-                 if any(t.lower() in cmd.lower() for t in it["match"])]
+        named = list({artlib.check_key(it): it for _sid, rec, _pr in approvals if rec for it in rec["items"]
+                      if any(t.lower() in cmd.lower() for t in it["match"])}.values())
         for it in named:
             led["checks"][artlib.check_key(it)] = {"verdict": verdict, "fp": artlib.fingerprint(root, cfg, it),
                                                    "t": artlib.now(), "cmd": cmd.strip()[:120],
