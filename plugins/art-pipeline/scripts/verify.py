@@ -492,6 +492,19 @@ try:
     report(dec == "deny" and "internal error" in why and dec2 is None and "UNCHECKED" in why2,
            "pre on an internal error: fails closed for art, open and loud for everything else")
 
+    # the plugin can be installed twice (user and project scope), so each hook may run twice per call
+    d = mkrepo(art=False, prod=True); hook("start", d); spec(d); check(d); ask(d); look(d)
+    twice = []
+    for n in (1, 2):
+        cmd = {"command": "blender -b -P build.py -- musketeer"}
+        for _ in range(2):
+            rc, out, _ = hook("pre", d, {"tool_name": "Bash", "tool_input": cmd, "tool_use_id": "call%d" % n})
+            twice.append(json.loads(out)["hookSpecificOutput"]["permissionDecision"] if out.strip() else None)
+            hook("after", d, {"tool_name": "Bash", "tool_input": cmd, "tool_use_id": "call%d" % n})
+    used = [v for k, v in json.load(open(os.path.join(d, ".git/art-pipeline/s1.json")))["iter"].items() if k.endswith(":musketeer")]
+    report(twice == [None] * 4 and used == [2],
+           "hooks running twice for one call charge one build, and the last build of a budget is not refused")
+
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")
 
