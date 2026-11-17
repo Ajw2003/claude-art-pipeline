@@ -64,7 +64,16 @@ output, pass if the pass pattern is, otherwise unknown) is kept for every item t
 with a fingerprint of the item's source files. `gated_commands` (movies, exports) are refused
 unless every item they name has a passing check newer than its last source edit, and the Stop gate
 blocks while an item changed this session has none (the loop guard releases it on the third block,
-loudly). A check run in the background is not captured and counts as unknown. Example:
+loudly). A gated command also needs the passing check to have named everything it names (a pass
+of `check.py musketeer aim` does not unlock `render.py movie musketeer reload`). A check is
+"pending" from the moment it starts: a failing one exits non-zero, Claude Code then runs no
+PostToolUse hook, and the item simply stays unpassed. A check run in the background is not
+captured and counts as unknown.
+
+Every Bash hook acts on each repo the command can reach: the working directory, its `cd`, `pushd`
+and `git -C` targets, and the repos of absolute paths it names. A Write or Edit is judged by the
+repo of the file. The Stop gate checks the working directory's repo and every repo the session
+acted in from outside (listed per session in `~/.claude/art-pipeline/`). Example:
 
     "checks": [{"command": "attack_check\\.py", "pass": "^PASS\\b", "fail": "^FAIL\\b"}],
     "gated_commands": ["attack\\.py\\s+(movie|export)"]

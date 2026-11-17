@@ -68,9 +68,14 @@ def write(d, rel, text="data", mtime=None):
     return p
 
 
+FAKE_HOME = tempfile.mkdtemp(prefix="art-pipeline-home-")   # the per-user repo list stays out of ~
+TMP.append(FAKE_HOME)
+
+
 def run(args, payload="", env=None, cwd=None):
     e = dict(os.environ)
     e.pop("ART_PIPELINE", None)
+    e["HOME"] = FAKE_HOME
     e.update(env or {})
     p = subprocess.run(args, input=payload.encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=e, cwd=cwd)
     return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
@@ -544,6 +549,10 @@ try:
     checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
     dec, _ = pre(d, "Bash", movie)
     report(dec is None and used_builds(d) == 1, "a passing check unlocks the movie, and the checks spent no builds")
+    dec, why = pre(d, "Bash", {"command": "python render.py movie musketeer aim --res 480 | tail -3"})
+    dec2, _ = pre(d, "Bash", {"command": "cd /tmp && python3 render.py movie musketeer reload --res 480 2>&1 | tail -3"})
+    report(dec == "deny" and "did not cover aim" in why and dec2 is None,
+           "a pass on one clip of an item does not unlock a movie of another clip; flags, paths and pipes are ignored")
     time.sleep(0.02)
     write(d, "Tools/anim/clip.py", "pose = 2")
     dec, why = pre(d, "Bash", movie)
@@ -554,6 +563,10 @@ try:
     checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
     rc, g = gate(d)
     report("Musketeer (unchecked)" not in g.get("reason", ""), "gate: a fresh passing check releases the stop")
+    pre(d, "Bash", {"command": "python clip_check.py musketeer reload"})   # exits non-zero: no `after` runs
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "did not finish with a passing result" in why,
+           "a check that exits non-zero (no after hook runs) replaces an older pass and keeps the movie refused")
     note = checked("python clip_check.py musketeer reload &", "")
     report("UNKNOWN" in note and pre(d, "Bash", movie)[0] == "deny",
            "a check whose output was not captured counts as unknown, not as a pass")
@@ -562,6 +575,36 @@ try:
     dec, why = pre(d, "Write", {"file_path": os.path.join(d, "Assets/Anim/musk9.anim")})
     report(dec == "deny" and "charged for:" in why and "Assets/Anim/musk1.anim" in why,
            "a spent budget's refusal lists what each build was charged for")
+
+    # the gate guards the repo a command acts in, not only the session's working directory
+    elsewhere = tempfile.mkdtemp(prefix="art-pipeline-elsewhere-")
+    TMP.append(elsewhere)
+
+    def pre_from(cwd, tool, ti):
+        rc, out, _ = hook("pre", d, {"tool_name": tool, "tool_input": ti, "cwd": cwd})
+        o = json.loads(out) if out.strip() else {}
+        return (o.get("hookSpecificOutput") or {}).get("permissionDecision")
+    report(pre_from(elsewhere, "Bash", {"command": "cd %s && python render.py movie musketeer" % d}) == "deny"
+           and pre_from(elsewhere, "Bash", {"command": "python %s/render.py movie musketeer" % d}) == "deny"
+           and pre_from(elsewhere, "Bash", {"command": "git -C %s status" % d}) is None,
+           "pre: a command run from outside the repo (cd into it, or an absolute path) is judged by that repo's rules")
+    report(pre_from(elsewhere, "Write", {"file_path": os.path.join(d, "Assets/Other/x.anim")}) == "deny",
+           "pre: a Write to an art file in another repo than the working directory is gated by that repo")
+    cmd = "cd %s && mkdir -p Assets/Audio && echo boom > Assets/Audio/sneak.wav" % d
+    subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    rc, out, _ = hook("after", d, {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": elsewhere})
+    o = json.loads(out) if out.strip() else {}
+    report(o.get("decision") == "block" and not os.path.exists(os.path.join(d, "Assets/Audio/sneak.wav")),
+           "after: art made by a command that cd'd into the repo is still undone")
+    time.sleep(0.02)
+    write(d, "Tools/anim/clip.py", "pose = 3")   # stale check, edited while the session sits elsewhere
+    rc, out, _ = hook("gate", d, {"cwd": elsewhere})
+    o = json.loads(out) if out.strip() else {}
+    report(o.get("decision") == "block" and "Musketeer (unchecked)" in o.get("reason", ""),
+           "gate: a repo the session worked in from outside it is checked at the stop too")
+    rc, out, _ = hook("pre", d, {"tool_name": "Write", "cwd": elsewhere,
+                                 "tool_input": {"file_path": os.path.join(FAKE_HOME, ".claude/art-pipeline/s1.repos.json")}})
+    report("deny" in out, "pre: the session's repo list cannot be edited")
 
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")

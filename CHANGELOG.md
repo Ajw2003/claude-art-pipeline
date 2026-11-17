@@ -16,7 +16,21 @@ the wrong things without saying so.
   Edit tool cost nothing.
 - **Every charge is reported**, after the command and in the refusal when a budget is spent, so
   the agent never has to guess what was counted. (It guessed "checks count" and then skipped them.)
-- `verify.py`: 72 checks.
+- Found by testing 0.4.0 live in a session, all fixed:
+  - **A command was judged by the wrong repo.** Hooks took the repo from the session's working
+    directory when the call started, so `cd other-repo && render movie` ran under the first repo's
+    rules (none) and was let through; a Write to an art file in another repo was never gated, and
+    the Stop gate only looked at the working directory. Now `pre` and `after` act on every repo a
+    command can reach (its `cd`/`pushd`/`git -C` targets and the repos of the absolute paths it
+    names), a written file is judged by its own repo, and the Stop gate also checks every repo the
+    session worked in from outside (a per-user list in `~/.claude/art-pipeline/`, protected).
+  - **A failing check left no record.** Claude Code runs no PostToolUse hook for a command that exits
+    non-zero, so a failing check never reached `after`, and an older pass could stand. A check now
+    marks its items "pending" before it runs; only a passing output turns that into a pass.
+  - **A pass on one clip unlocked another.** Verdicts are per item, and an item can have many clips.
+    A movie or export now needs a passing check that named everything it names (paths, flags,
+    numbers and pipes ignored).
+- `verify.py`: 79 checks.
 
 ## 0.3.1 - 2026-11-17
 
