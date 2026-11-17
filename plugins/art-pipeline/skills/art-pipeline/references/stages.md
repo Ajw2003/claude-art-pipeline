@@ -20,9 +20,26 @@ creature is measured against.
 
 **Gate:** the user approves the brief. Register, palette and scale are theirs.
 
-## 2. Concept
+## 2. Reference, concept and spec, then the human approves
 
-One sheet per asset, drawn by code so it can be regenerated:
+**Reference first.** Before drawing or building anything, find real-world reference for the asset
+and save it under `docs/art/reference/<id>/`: photographs or museum pieces for a prop, period
+plates or photographs for a costume, a motion-capture take or video frames for an animation, a
+field recording for a sound. Write where each came from and what to take from it in the spec. The
+pipeline's own concept sheets and renders are never reference. If the reference cannot be fetched
+from this machine, ask the human for it or for the host to be allowed; do not reason out what it
+would show.
+
+**The spec** (`docs/art/specs/<id>.json`, from `spec-template.md`) names the reference, the key
+poses or features taken from it, what the human will check, every path the work writes, and the
+build budget. `approve.py check <id>` validates it and prints the AskUserQuestion to send. The
+human's "Approve" is the only thing that writes `docs/art/approvals/<id>.json`; the hooks refuse
+every write to an art path and every build command until that record exists, a reference image has
+been opened in the session, and the budget is not spent. Editing the spec or a reference after
+approval voids it.
+
+**Concept sheets**, where they help the human decide, go with the spec. One sheet per asset, drawn
+by code so it can be regenerated:
 
 - SVG from a shared sheet template (frame, grid, ground line, title block, palette strip), rendered
   to PNG with headless Chromium (Playwright `page.screenshot` of the SVG at 2×); or Pillow plates.
@@ -35,13 +52,15 @@ When the design is the user's to choose (a player character, a new faction), dra
 plates and set them side by side on a proposal page (an HTML artifact). Record the choice in a plan
 and a dated decision entry, with the rejected options, so nobody proposes them again.
 
-**Gate:** open every PNG. On scale against the ladder and the human; no label overlapping a drawing
+**Gate:** the human approves the spec (and its reference and concept) through the approval
+question. Before asking, open every PNG: on scale against the ladder and the human; no label overlapping a drawing
 or another label; colours only from the entry's materials; every number on the sheet equals the
 spec. Fix the generator, never the SVG by hand; re-render; look again.
 
-## 3. Spec
+## 3. Asset data
 
-One structured entry per asset (JSON is simplest), the single source the model, the engine and the
+One structured entry per asset in the project's own data (separate from the approval spec, which
+says what to make and from what; this says how the project builds it) (JSON is simplest), the single source the model, the engine and the
 docs are generated from: slug, name, height or W×D×H, triangle and texture budget, materials
 (name, hex, roughness and wear notes), build bullets with real sizes ("Hat: cone 0.55 m tall,
 brim 0.40 m dia, tip bends back 30°"), and for characters the rig, the clip list and anything
@@ -83,19 +102,33 @@ hands.
 
 ## 6. Clips
 
-Keyframed by code on one shared reference skeleton, so one clip retargets to every humanoid:
+Motion comes from reference, never from reasoning about what a body would do:
 
-- named poses (bone rotations), clips as timed pose keys with easing, anticipation and overshoot;
+- **Best: a motion-capture take**, retargeted. The CMU Graphics Lab Motion Capture Database is free
+  to use; Blender imports BVH (`bpy.ops.import_anim.bvh`). Retarget each bone's turn from its own
+  rest, so models of other proportions keep their own posture.
+- **Otherwise: key poses taken from reference frames** (video or period plates), one key per frame
+  the spec's `key_poses` names, compared side by side with that frame. The timing comes from the
+  video, not from a guess.
+- If a pose will not come right within the build budget, stop and ask: the usual cause is missing
+  or wrong reference, or a model whose props cannot do the action. Tuning a solver by argument is
+  how one session spent its whole budget on a single musket aim.
+
+Clips are built by code on one shared reference skeleton, so one clip retargets to every humanoid:
+
+- named poses (bone rotations), clips as timed pose keys with easing, anticipation and overshoot,
+  each pose taken from a reference frame;
 - locomotion from a parametric gait (stride, cadence, bob) matched to the in-game speed, so feet do
   not slide; in place, no root motion, when the engine moves the body;
 - foot IK to the floor while grounded; events (footstep, hit, release) at normalized times;
 - export per family (base, weapon, signature) as animation-only FBX; re-import to verify every take
   and frame count; write a manifest with loop flags, events and metrics.
 
-Review per clip: 8 stills on the actual target model, a foot-contact trace for locomotion, an MP4.
+Review per clip: 8 stills on the actual target model with the matching reference frames beside
+them, a foot-contact trace for locomotion, an MP4.
 
-**Gate:** feet do not slide (metric under 1 cm), nothing below the floor, the pose reads as the
-action at a glance, and a one-shot ends where the next state expects it (a death ends lying still).
+**Gate:** each key pose matches its reference frame side by side, feet do not slide (metric under
+1 cm), nothing below the floor, the pose reads as the action at a glance, and a one-shot ends where the next state expects it (a death ends lying still).
 
 ## 7. Engine
 

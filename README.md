@@ -1,9 +1,10 @@
 # art-pipeline
 
-STATUS: v0.1. A Claude Code plugin, split out of
+STATUS: v0.2. A Claude Code plugin, split out of
 [Ajw2003/AjsClaudeCodeTools](https://github.com/Ajw2003/AjsClaudeCodeTools) (same shape as its
-`house-rules` plugin: one `run.sh` shim, one stdlib Python file). Makes game art by code - concept, model, rig, animation - and never calls a model done
-until someone has looked at it beside its concept. The skills (under
+`house-rules` plugin: one `run.sh` shim, one stdlib Python file). Makes game art by code - models, animation, VFX, SFX, music, textures, sprites, UI art - and
+makes nothing until a human has approved a spec with real-world reference, then never calls a model
+done until someone has looked at it beside its concept. The skills (under
 `plugins/art-pipeline/skills/`) carry the method; the hooks here carry the gate.
 
 ## Install
@@ -24,7 +25,35 @@ or just ask for a model, character or prop - the skill also loads on its own whe
 fits. The renders it uses need Blender's Python module; the skill's
 `scripts/setup_bpy.sh` installs it. The review gate (below) is always on once installed.
 
-## The gate
+## The approval gate: nothing is made without reference and a human's approval
+
+| Event | Handler | Does |
+|---|---|---|
+| `PreToolUse` (Write, Edit, MultiEdit, NotebookEdit, Bash, AskUserQuestion) | `pre` | Refuses a write to an art path, or a build command, unless a human approval covers it, one of its reference images was opened this session, and its build budget is not spent. Refuses any write to `docs/art/approvals/` or `.art-pipeline.json` (git may still commit them), `approve.py grant`, and an approval question sent with its answers already filled in. On an internal error it refuses calls that look like art and lets others through with a warning. |
+| `PostToolUse` (AskUserQuestion) | `answered` | When the human answers "Approve" to a question carrying a spec's token, writes `docs/art/approvals/<id>.json` (hashes of the spec and every reference) and records the grant in the session ledger. |
+
+A spec is `docs/art/specs/<id>.json`
+(`plugins/art-pipeline/skills/art-pipeline/references/spec-template.md`). `approve.py check <id>`
+validates it and prints the question to ask; `approve.py status` lists specs and approvals;
+`approve.py grant <id>` is the human's own route from a real terminal. An approval counts only if
+this session's hook wrote it or it was committed, unchanged, before the session started, and only
+while its spec and references are unchanged. Each allows `iterations` runs of a build command
+(default 5); then the hook refuses builds and edits for it until the human approves again.
+
+What counts as art: `production_paths` (default: models, audio, `*.anim`, `*.bvh`, shaders,
+materials, layered image files, and anything under folders named art, audio, sound(s), sfx, music,
+textures, sprites, icons, vfx, particles, shaders, materials, animations, models or fonts), minus
+`production_exclude` (default `*.meta`, `docs/*`). Build commands: `producer_commands`, a list of
+regular expressions (default: `blender`). The spec, reference, approval and review folders are
+never art. The Stop gate also blocks on any changed art file no usable approval covers and on any
+approval file no human grant wrote.
+
+Limits, stated plainly: the hooks stop an agent's tools, not a determined one. A script that the
+agent writes and runs can still write files the hook never sees; the Stop gate then catches the
+changed art file. The approval channel relies on Claude Code filling `answers` from the human's
+click.
+
+## The review gate
 
 | Event | Handler | Does |
 |---|---|---|
@@ -40,7 +69,9 @@ the sheet PNG exists, is at least as new as the model, and was opened this sessi
 `review.py status` shows what would pass.
 
 Override per project with `.art-pipeline.json` at the repo root:
-`{"model_globs": [...], "exclude": [...], "review_dir": "..."}`.
+`{"model_globs": [...], "exclude": [...], "review_dir": "...", "production_paths": [...],
+"production_exclude": [...], "producer_commands": [...], "spec_dir": "...", "reference_dir": "...",
+"approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
 
 Doc-drift check: add `"doc_check": "<shell command>"` (run from the repo root, 60 s timeout) and
 optionally `"doc_check_paths": [...]` (fnmatch on repo-relative paths, default
@@ -55,7 +86,8 @@ loudly.
 
 ## Off switch
 
-`ART_PIPELINE=off` - the gate says it is off and does not check. `ART_PIPELINE_PYTHON` picks the
+`ART_PIPELINE=off` (set by the human in the environment Claude Code starts in) - the gates say
+they are off and do not check. `ART_PIPELINE_PYTHON` picks the
 interpreter, `ART_PIPELINE_DEBUG=1` traces `run.sh`.
 
 Verify: `python plugins/art-pipeline/scripts/verify.py` (CI runs it on every push). Design
