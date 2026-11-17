@@ -10,7 +10,11 @@
   the parts of a command that run something: quoted text with spaces (commit messages, `-c`
   programs) is dropped, and parts led by `git`, `cat`, `grep`, `sed`, `ls` and other read-only
   programs are left out. `git add Tools/ArtForge/attack.py` had been charged as a build.
-- `verify.py`: 85 checks.
+- **The build count survives the session.** It was kept only in the session's ledger, so a new or
+  restarted session (or a fresh clone) started every budget again. The hooks now also write it
+  beside the approval, `<approval_dir>/<id>.builds` (closed to the agent like the approval), the
+  budget uses the larger of the two, and the Stop gate asks for the file to be committed.
+- `verify.py`: 88 checks.
 
 ## 0.4.0 - 2026-11-17
 

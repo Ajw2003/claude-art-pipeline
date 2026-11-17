@@ -644,6 +644,28 @@ try:
     report(dec == "deny" and "older than Musketeer's last source edit" in why,
            "clip review: an edit after the review needs a new render and review, even with a fresh check")
 
+    # the build count survives the session: it is kept beside the approval and must be committed
+    def gate_as(d, session):
+        rc, out, _ = hook("gate", d, session=session)
+        return json.loads(out) if out.strip() else {}
+    d = mkrepo(art=False, prod=True); hook("start", d, session="s8")
+    spec(d); check(d); ask(d, session="s8"); look(d, session="s8")
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "approved")
+    bash(d, "blender -b -P build.py -- musketeer", session="s8")
+    bfile = os.path.join(d, "docs/art/approvals/powder.builds")
+    g = gate_as(d, "s8")
+    report(os.path.isfile(bfile) and g.get("decision") == "block" and "powder.builds" in g.get("reason", ""),
+           "the build count is written beside the approval, and the stop asks for it to be committed")
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "builds")
+    g = gate_as(d, "s8")
+    hook("start", d, session="s9"); look(d, session="s9")
+    dec, why = pre(d, "Bash", {"command": "blender -b -P build.py -- musketeer"}, session="s9")
+    dec2, why2 = pre(d, "Bash", {"command": "blender -b -P build.py -- musketeer"}, session="s9")
+    report("powder.builds" not in g.get("reason", "") and dec is None and dec2 == "deny" and "used all 2" in why2,
+           "a new session goes on from the committed count: the 2-build budget is not started again")
+    dec, why = pre(d, "Write", {"file_path": bfile}, session="s9")
+    report(dec == "deny", "pre: the build count file cannot be written by the agent")
+
     # a build tool named but not run (git add, grep, a commit message) is not a build
     sys.path.insert(0, HERE)
     import artlib as _al

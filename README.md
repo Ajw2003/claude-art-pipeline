@@ -38,6 +38,9 @@ A spec is `docs/art/specs/<id>.json`
 with parts (model, animation, texture, sound...) and real-world reference per part.
 `approve.py check <id>` validates it, writes the review sheet `docs/art/specs/<id>.sheet.html`
 (same layout every time, reference shown large) and prints the question to ask;
+The builds spent under each grant are also written beside its approval,
+`<approval_dir>/<id>.builds` (by the hooks only), and the Stop gate asks for that file to be
+committed, so a new session or a fresh clone goes on from the same count.
 `approve.py status` lists specs and approved items; `approve.py grant <id>` is the human's own
 route from a real terminal. An approval counts only if this session's hook wrote it or it was
 committed, unchanged, before the session started, and only while its spec and references are

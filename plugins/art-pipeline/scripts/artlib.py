@@ -321,6 +321,13 @@ def evaluate(root, gitdir, session_id):
                 why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
                 res.append((n, "fail", why))
+    for sid, rec, pr in approvals:
+        bp = builds_path(rec or {})
+        if bp and os.path.isfile(bp):
+            rel = os.path.relpath(bp, root).replace(os.sep, "/")
+            if git(root, "status", "--porcelain", "--", rel).strip():
+                res.append((rel, "fail", ["the build count must survive this session: commit it "
+                                          "(git add %s && git commit)" % rel]))
     if cfg.get("checks"):
         for sid, rec, pr in approvals:
             for it in (rec or {}).get("items", []):
@@ -564,6 +571,7 @@ def load_approvals(root, cfg, led):
             out.append((sid, None, ["%s is unreadable (%s)" % (rel, exc)]))
             continue
         rec["_sha"] = sha(os.path.join(d, f))  # the budget is counted per grant, so a re-approval starts it again
+        rec["_builds"] = os.path.join(d, sid + ".builds")
         out.append((sid, rec, probs))
     return out
 
@@ -576,13 +584,50 @@ def budget_key(rec, item):
     return "%s:%s" % (rec["_sha"], slugify(item["name"]))
 
 
+# The build count of each grant also lives beside its approval, <approval_dir>/<id>.builds, written
+# only by the hooks (the approval folder is closed to the agent) and committed with git, so a new or
+# restarted session, or a fresh clone, does not start the budget again. A session ledger alone did.
+
+def builds_path(rec):
+    return rec.get("_builds") or ""
+
+
+def read_builds(rec):
+    try:
+        with open(builds_path(rec), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def used(rec, item, led):
+    """Builds spent on an item under this grant: the session's count or the repo's, whichever is more."""
+    k = "%s:%s" % (rec.get("grant", ""), slugify(item["name"]))
+    return max(led["iter"].get(budget_key(rec, item), 0), int((read_builds(rec).get(k) or {}).get("n", 0)))
+
+
+def persist_build(rec, item, n, why):
+    p = builds_path(rec)
+    if not p:
+        return
+    data = read_builds(rec)
+    k = "%s:%s" % (rec.get("grant", ""), slugify(item["name"]))
+    entry = data.get(k) or {"n": 0, "charges": []}
+    entry["n"] = max(int(entry.get("n", 0)), n)
+    entry["charges"] = (list(entry.get("charges") or []) + [why[:100]])[-30:]
+    data[k] = entry
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, indent=1, sort_keys=True) + "\n")
+
+
 def usable(root, rec, item, led):
     """Problems that stop an item of a valid approval being built right now."""
     probs = []
     seen = seen_paths(led)
     if item["images"] and not any(norm(os.path.join(root, f)) in seen for f in item["images"]):
         probs.append("open a reference image of %s with Read before building it (%s)" % (item["name"], item["images"][0]))
-    if led["iter"].get(budget_key(rec, item), 0) >= rec["iterations"]:
+    if used(rec, item, led) >= rec["iterations"]:
         spent = led.get("charges", {}).get(budget_key(rec, item)) or []
         probs.append("%s has used all %d builds the human approved%s. Stop refining: show the human the "
                      "last render beside its reference and ask them to accept it, add reference, or "
@@ -595,9 +640,10 @@ def charge(led, rec, item, why):
     """Spends one build of an item's budget and says so: the ledger keeps what each build was charged
     for, and a note for the next hook output, so a spent budget is never a mystery."""
     k = budget_key(rec, item)
-    led["iter"][k] = led["iter"].get(k, 0) + 1
+    led["iter"][k] = used(rec, item, led) + 1
     led.setdefault("charges", {}).setdefault(k, []).append(why[:100])
     led["charges"][k] = led["charges"][k][-30:]
+    persist_build(rec, item, led["iter"][k], why)
     led.setdefault("notes", []).append("charged a build to %s for %s (%d of %d used)" % (
         item["name"], why[:100], led["iter"][k], rec["iterations"]))
 
