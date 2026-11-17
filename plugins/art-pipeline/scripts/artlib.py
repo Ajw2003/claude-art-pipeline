@@ -349,7 +349,7 @@ def validate_spec(root, cfg, sid):
         if not _text(r.get("shows"), 20):
             probs.append("references[%d].shows must say what it shows and what to take from it (>= 20 chars)" % i)
     if kind not in AUDIO_KINDS and not any(f.lower().endswith(IMG_EXT) for f in ref_files):
-        probs.append("a %s needs at least one image reference (%s) that can be opened and compared"
+        probs.append("kind %s needs at least one image reference (%s) that can be opened and compared"
                      % (kind, "/".join(IMG_EXT)))
     acc = s.get("acceptance")
     if not isinstance(acc, list) or not acc or not all(_text(a, 10) for a in acc):
@@ -374,7 +374,7 @@ def validate_spec(root, cfg, sid):
             if not _text(k.get("at"), 1) or not _text(k.get("pose"), 10):
                 probs.append("key_poses[%d] needs \"at\" (time or frame) and \"pose\" (>= 10 chars, as seen in the reference)" % i)
     if kind in AUDIO_KINDS and not isinstance(s.get("duration_s"), (int, float)):
-        probs.append("a %s needs \"duration_s\"" % kind)
+        probs.append("kind %s needs \"duration_s\"" % kind)
     return s, probs
 
 
