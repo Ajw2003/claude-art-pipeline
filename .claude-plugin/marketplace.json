@@ -9,7 +9,7 @@
     {
       "name": "art-pipeline",
       "source": "./plugins/art-pipeline",
-      "description": "Make game art by code - concept, model, rig, animation - and never call a model done until someone has looked at it beside its concept. A Stop-hook gate enforces the look."
+      "description": "Make game art by code - models, animation, VFX, SFX, music, textures, sprites, UI art. Nothing is made until a human approves a spec with real-world reference, each approval has a build budget, and a model is not done until it is looked at beside its concept. Hooks enforce all three."
     }
   ]
 }

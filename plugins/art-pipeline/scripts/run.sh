@@ -50,7 +50,7 @@ fi
 if [ -z "$PY" ]; then
   case "$EVENT" in
     start)
-      printf '{"systemMessage":"art-pipeline plugin: no working Python interpreter found on PATH. The review gate is NOT armed this session and will NOT run at Stop."}'
+      printf '{"systemMessage":"art-pipeline plugin: no working Python interpreter found on PATH. The review gate and the approval gate are NOT armed this session: art writes are NOT checked."}'
       ;;
     gate)
       printf '{"systemMessage":"art-pipeline plugin: no working Python interpreter found on PATH. The review gate did NOT run - any changed models are UNREVIEWED."}'
