@@ -69,7 +69,7 @@ def load_config(root):
            "doc_check": "", "doc_check_paths": DOC_PATHS,
            "production_paths": DEFAULT_PRODUCTION, "production_exclude": ["*.meta", "docs/*"],
            "producer_commands": DEFAULT_PRODUCERS, "source_paths": DEFAULT_SOURCES,
-           "checks": [], "gated_commands": [], "spec_dir": "docs/art/specs",
+           "checks": [], "gated_commands": [], "clip_review_views": [], "spec_dir": "docs/art/specs",
            "reference_dir": "docs/art/reference", "approval_dir": "docs/art/approvals"}
     path = os.path.join(root, ".art-pipeline.json")
     if os.path.exists(path):
@@ -248,12 +248,12 @@ def record_name(model):
     return model.replace("/", "__") + ".review.json"
 
 
-def load_records(root, cfg):
+def load_records(root, cfg, suffix=".review.json"):
     d = os.path.join(root, cfg["review_dir"])
     recs, bad = [], []
     if os.path.isdir(d):
         for f in sorted(os.listdir(d)):
-            if f.endswith(".review.json"):
+            if f.endswith(suffix):
                 try:
                     with open(os.path.join(d, f), "r", encoding="utf-8") as fh:
                         r = json.load(fh)
@@ -321,6 +321,13 @@ def evaluate(root, gitdir, session_id):
                 why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
                 res.append((n, "fail", why))
+    for sid, rec, pr in approvals:
+        bp = builds_path(rec or {})
+        if bp and os.path.isfile(bp):
+            rel = os.path.relpath(bp, root).replace(os.sep, "/")
+            if git(root, "status", "--porcelain", "--", rel).strip():
+                res.append((rel, "fail", ["the build count must survive this session: commit it "
+                                          "(git add %s && git commit)" % rel]))
     if cfg.get("checks"):
         for sid, rec, pr in approvals:
             for it in (rec or {}).get("items", []):
@@ -564,6 +571,7 @@ def load_approvals(root, cfg, led):
             out.append((sid, None, ["%s is unreadable (%s)" % (rel, exc)]))
             continue
         rec["_sha"] = sha(os.path.join(d, f))  # the budget is counted per grant, so a re-approval starts it again
+        rec["_builds"] = os.path.join(d, sid + ".builds")
         out.append((sid, rec, probs))
     return out
 
@@ -576,13 +584,50 @@ def budget_key(rec, item):
     return "%s:%s" % (rec["_sha"], slugify(item["name"]))
 
 
+# The build count of each grant also lives beside its approval, <approval_dir>/<id>.builds, written
+# only by the hooks (the approval folder is closed to the agent) and committed with git, so a new or
+# restarted session, or a fresh clone, does not start the budget again. A session ledger alone did.
+
+def builds_path(rec):
+    return rec.get("_builds") or ""
+
+
+def read_builds(rec):
+    try:
+        with open(builds_path(rec), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def used(rec, item, led):
+    """Builds spent on an item under this grant: the session's count or the repo's, whichever is more."""
+    k = "%s:%s" % (rec.get("grant", ""), slugify(item["name"]))
+    return max(led["iter"].get(budget_key(rec, item), 0), int((read_builds(rec).get(k) or {}).get("n", 0)))
+
+
+def persist_build(rec, item, n, why):
+    p = builds_path(rec)
+    if not p:
+        return
+    data = read_builds(rec)
+    k = "%s:%s" % (rec.get("grant", ""), slugify(item["name"]))
+    entry = data.get(k) or {"n": 0, "charges": []}
+    entry["n"] = max(int(entry.get("n", 0)), n)
+    entry["charges"] = (list(entry.get("charges") or []) + [why[:100]])[-30:]
+    data[k] = entry
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, indent=1, sort_keys=True) + "\n")
+
+
 def usable(root, rec, item, led):
     """Problems that stop an item of a valid approval being built right now."""
     probs = []
     seen = seen_paths(led)
     if item["images"] and not any(norm(os.path.join(root, f)) in seen for f in item["images"]):
         probs.append("open a reference image of %s with Read before building it (%s)" % (item["name"], item["images"][0]))
-    if led["iter"].get(budget_key(rec, item), 0) >= rec["iterations"]:
+    if used(rec, item, led) >= rec["iterations"]:
         spent = led.get("charges", {}).get(budget_key(rec, item)) or []
         probs.append("%s has used all %d builds the human approved%s. Stop refining: show the human the "
                      "last render beside its reference and ask them to accept it, add reference, or "
@@ -595,9 +640,10 @@ def charge(led, rec, item, why):
     """Spends one build of an item's budget and says so: the ledger keeps what each build was charged
     for, and a note for the next hook output, so a spent budget is never a mystery."""
     k = budget_key(rec, item)
-    led["iter"][k] = led["iter"].get(k, 0) + 1
+    led["iter"][k] = used(rec, item, led) + 1
     led.setdefault("charges", {}).setdefault(k, []).append(why[:100])
     led["charges"][k] = led["charges"][k][-30:]
+    persist_build(rec, item, led["iter"][k], why)
     led.setdefault("notes", []).append("charged a build to %s for %s (%d of %d used)" % (
         item["name"], why[:100], led["iter"][k], rec["iterations"]))
 
@@ -647,6 +693,29 @@ def check_verdict(entries, output):
 
 
 SHELL_WORDS = {"python", "python3", "cd", "sh", "bash", "env", "timeout", "nice", "time", "exec", "sudo"}
+# commands that only read or move text: a build tool named in them is not being run
+READ_ONLY = {"git", "cat", "less", "more", "head", "tail", "grep", "egrep", "rg", "ls", "wc", "diff", "echo",
+             "printf", "file", "stat", "sed", "awk", "find", "which", "type", "cd", "pushd", "popd", "true", "test"}
+WRAPPERS = {"timeout", "nice", "time", "env", "sudo", "exec", "command", "nohup"}
+
+
+def run_part(cmd):
+    """The parts of a shell command that run something, for matching build, check and gated patterns:
+    quoted text (commit messages, -c programs) is dropped, the command is split at ; & | && || and new
+    lines, and parts whose program only reads (git, cat, grep, sed, ls...) are left out. `git add
+    Tools/ArtForge/attack.py` named a build tool and was charged as a build."""
+    # a quoted single word (a path) stays; quoted text with spaces (a message, a -c program) goes
+    s = re.sub(r"'([^']*)'|\"((?:[^\"\\\\]|\\\\.)*)\"",
+               lambda m: " " if re.search(r"\s", m.group(1) if m.group(1) is not None else m.group(2))
+               else (m.group(1) if m.group(1) is not None else m.group(2)), cmd)
+    keep = []
+    for seg in re.split(r"&&|\|\||[;&|\n]", s):
+        toks = seg.split()
+        while toks and (re.match(r"^\w+=", toks[0]) or toks[0] in WRAPPERS or re.match(r"^-|^\d+[smh]?$", toks[0])):
+            toks = toks[1:]
+        if toks and os.path.basename(toks[0]) not in READ_ONLY:
+            keep.append(" ".join(toks))
+    return " ; ".join(keep)
 
 
 def cmd_words(cmd, patterns):
@@ -661,6 +730,59 @@ def cmd_words(cmd, patterns):
         out |= {t.lower() for t in re.findall(r"(?<![\w./=-])[A-Za-z][\w-]{2,}(?![\w./])", s)
                 if not re.match(r"python3?\.?\d*$", t.lower())}
     return out - SHELL_WORDS
+
+
+def clip_record_name(item_name, clips):
+    return "%s.%s.clip-review.json" % (slugify(item_name), "-".join(sorted(slugify(c) for c in clips)) or "all")
+
+
+def clip_review_state(root, cfg, led, item, gated_cmd):
+    """(True, []) when `clip_review_views` is off, or a passing clip review covers every clip the gated
+    command names, shows every required view, and has a sheet opened this session that is newer than
+    the item's last source edit. A side view cannot show a prop inside the body; a top view can."""
+    views = [v.lower() for v in cfg.get("clip_review_views") or []]
+    if not views:
+        return True, []
+    want = cmd_words(gated_cmd, cfg.get("gated_commands") or []) - {t.lower() for t in item["match"]}
+    srcs = item_sources(root, cfg, item)
+    newest = max([os.path.getmtime(os.path.join(root, f)) for f in srcs] or [0])
+    seen = seen_paths(led)
+    recs, _bad = load_records(root, cfg, suffix=".clip-review.json")
+    mine = [r for r in recs if r.get("item") == item["name"]]
+    hint = ("render stills that show %s, put them beside the reference in a sheet, open it with Read, then: "
+            "python \"%s\" clip --item \"%s\" --clips %s --views %s --sheet <sheet.png> --verdict pass "
+            "--seen \"<what you saw, >= %d chars>\"" % (", ".join(views), os.path.join(HERE, "review.py"),
+                                                        item["name"], " ".join(sorted(want)) or "<clip>",
+                                                        " ".join(views), MIN_SEEN))
+    if not mine:
+        return False, ["%s has no clip review: %s" % (item["name"], hint)]
+    last = None
+    for r in mine:
+        probs = []
+        sheet = r.get("sheet") if isinstance(r.get("sheet"), str) else ""
+        sabs = os.path.join(root, sheet)
+        missing = sorted(want - {str(c).lower() for c in r.get("clips") or []})
+        if missing:
+            probs.append("the clip review does not cover %s" % ", ".join(missing))
+        lack = [v for v in views if v not in {str(x).lower() for x in r.get("views") or []}]
+        if lack:
+            probs.append("the clip review's sheet must show the %s view%s" % (", ".join(lack), "s" if len(lack) > 1 else ""))
+        if r.get("verdict") != "pass":
+            probs.append("the clip review's verdict is %r, not pass" % r.get("verdict"))
+        if len(str(r.get("seen") or "").strip()) < MIN_SEEN:
+            probs.append("\"seen\" must say what the reviewer saw (>= %d chars)" % MIN_SEEN)
+        if not sheet or not os.path.isfile(sabs):
+            probs.append("sheet %r does not exist" % sheet)
+        else:
+            if os.path.getmtime(sabs) < newest:
+                probs.append("sheet %s is older than %s's last source edit: render and review again" % (sheet, item["name"]))
+            if norm(sabs) not in seen:
+                probs.append("sheet %s was not opened (Read) this session" % sheet)
+        if not probs:
+            return True, []
+        if last is None or len(probs) < len(last):
+            last = probs
+    return False, ["%s's clip review is not usable: %s" % (item["name"], "; ".join(last))]
 
 
 def check_words(cmd, cfg):

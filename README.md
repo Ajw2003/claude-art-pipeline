@@ -1,6 +1,6 @@
 # art-pipeline
 
-STATUS: v0.4. A Claude Code plugin, split out of
+STATUS: v0.5. A Claude Code plugin, split out of
 [Ajw2003/AjsClaudeCodeTools](https://github.com/Ajw2003/AjsClaudeCodeTools) (same shape as its
 `house-rules` plugin: one `run.sh` shim, one stdlib Python file). Makes game art by code - models, animation, VFX, SFX, music, textures, sprites, UI art - and
 makes nothing until a human has approved a spec with real-world reference, then never calls a model
@@ -38,6 +38,9 @@ A spec is `docs/art/specs/<id>.json`
 with parts (model, animation, texture, sound...) and real-world reference per part.
 `approve.py check <id>` validates it, writes the review sheet `docs/art/specs/<id>.sheet.html`
 (same layout every time, reference shown large) and prints the question to ask;
+The builds spent under each grant are also written beside its approval,
+`<approval_dir>/<id>.builds` (by the hooks only), and the Stop gate asks for that file to be
+committed, so a new session or a fresh clone goes on from the same count.
 `approve.py status` lists specs and approved items; `approve.py grant <id>` is the human's own
 route from a real terminal. An approval counts only if this session's hook wrote it or it was
 committed, unchanged, before the session started, and only while its spec and references are
@@ -70,6 +73,14 @@ of `check.py musketeer aim` does not unlock `render.py movie musketeer reload`).
 PostToolUse hook, and the item simply stays unpassed. A check run in the background is not
 captured and counts as unknown.
 
+`clip_review_views` (e.g. `["top"]`) adds a review to the gate. A gated command then also needs,
+for every item it names, a passing clip review written with
+`review.py clip --item NAME --clips C... --views top side --sheet S.png --verdict pass --seen "..."`
+that names every clip the command names, lists every required view, and points at a sheet that
+was opened (Read) this session and is newer than the item's last source edit. A render from the
+side cannot show a prop inside the body; a top view can. Records are
+`<review_dir>/<item>.<clips>.clip-review.json`.
+
 Every Bash hook acts on each repo the command can reach: the working directory, its `cd`, `pushd`
 and `git -C` targets, and the repos of absolute paths it names. A Write or Edit is judged by the
 repo of the file. The Stop gate checks the working directory's repo and every repo the session
@@ -101,7 +112,7 @@ the sheet PNG exists, is at least as new as the model, and was opened this sessi
 Override per project with `.art-pipeline.json` at the repo root:
 `{"model_globs": [...], "exclude": [...], "review_dir": "...", "production_paths": [...],
 "production_exclude": [...], "producer_commands": [...], "source_paths": [...], "checks": [...],
-"gated_commands": [...], "spec_dir": "...", "reference_dir": "...", "approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
+"gated_commands": [...], "clip_review_views": [...], "spec_dir": "...", "reference_dir": "...", "approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
 
 Doc-drift check: add `"doc_check": "<shell command>"` (run from the repo root, 60 s timeout) and
 optionally `"doc_check_paths": [...]` (fnmatch on repo-relative paths, default

@@ -606,6 +606,83 @@ try:
                                  "tool_input": {"file_path": os.path.join(FAKE_HOME, ".claude/art-pipeline/s1.repos.json")}})
     report("deny" in out, "pre: the session's repo list cannot be edited")
 
+    # clip reviews: with clip_review_views set, a movie also needs a passing review that shows them
+    d = mkrepo(art=False, prod=True)
+    write(d, ".art-pipeline.json", json.dumps({
+        "checks": [{"command": r"clip_check\.py", "pass": r"^PASS\b", "fail": r"^FAIL\b"}],
+        "gated_commands": [r"render\.py\s+movie"], "clip_review_views": ["top"]}))
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "cfg")
+    hook("start", d)
+    spec(d, items=[item("Musketeer", ["Tools/anim/*", "Assets/Anim/musk*"], ["musketeer"])], iterations=3)
+    check(d); ask(d); look(d)
+    write(d, "Tools/anim/clip.py", "pose = 1")
+    checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
+    movie = {"command": "python render.py movie musketeer reload"}
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "no clip review" in why and "--views top" in why,
+           "clip review: a checked clip still needs a review showing the top view before a movie")
+    time.sleep(0.02)
+    sheet = write(d, "docs/art/sheets/reload.png", "png")
+
+    def clip_rec(*extra, views=("top", "side"), clips=("reload",)):
+        return run([sys.executable, REVIEW, "clip", "--item", "Musketeer", "--clips"] + list(clips) + ["--views"]
+                   + list(views) + ["--sheet", "docs/art/sheets/reload.png", "--verdict", "pass", "--seen", SEEN_TXT]
+                   + list(extra), cwd=d)
+    rc, _, err = clip_rec(views=("side", "front"))
+    report(rc == 1 and "top view" in err, "review.py clip refuses a review without the views the project requires")
+    clip_rec()
+    dec, why = pre(d, "Bash", movie)
+    see(d, sheet)
+    dec2, _ = pre(d, "Bash", movie)
+    dec3, why3 = pre(d, "Bash", {"command": "python render.py movie musketeer aim"})
+    report(dec == "deny" and "was not opened" in why and dec2 is None and dec3 == "deny",
+           "clip review: its sheet must be opened this session, and it covers only the clips it names")
+    time.sleep(0.02)
+    write(d, "Tools/anim/clip.py", "pose = 2")
+    checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "older than Musketeer's last source edit" in why,
+           "clip review: an edit after the review needs a new render and review, even with a fresh check")
+
+    # the build count survives the session: it is kept beside the approval and must be committed
+    def gate_as(d, session):
+        rc, out, _ = hook("gate", d, session=session)
+        return json.loads(out) if out.strip() else {}
+    d = mkrepo(art=False, prod=True); hook("start", d, session="s8")
+    spec(d); check(d); ask(d, session="s8"); look(d, session="s8")
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "approved")
+    bash(d, "blender -b -P build.py -- musketeer", session="s8")
+    bfile = os.path.join(d, "docs/art/approvals/powder.builds")
+    g = gate_as(d, "s8")
+    report(os.path.isfile(bfile) and g.get("decision") == "block" and "powder.builds" in g.get("reason", ""),
+           "the build count is written beside the approval, and the stop asks for it to be committed")
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "builds")
+    g = gate_as(d, "s8")
+    hook("start", d, session="s9"); look(d, session="s9")
+    dec, why = pre(d, "Bash", {"command": "blender -b -P build.py -- musketeer"}, session="s9")
+    dec2, why2 = pre(d, "Bash", {"command": "blender -b -P build.py -- musketeer"}, session="s9")
+    report("powder.builds" not in g.get("reason", "") and dec is None and dec2 == "deny" and "used all 2" in why2,
+           "a new session goes on from the committed count: the 2-build budget is not started again")
+    dec, why = pre(d, "Write", {"file_path": bfile}, session="s9")
+    report(dec == "deny", "pre: the build count file cannot be written by the agent")
+
+    # a build tool named but not run (git add, grep, a commit message) is not a build
+    sys.path.insert(0, HERE)
+    import artlib as _al
+    rp = _al.run_part
+    report("render.py" not in rp("git add tools/render.py && git commit -m 'run render.py movie musketeer'")
+           and "render.py" not in rp("grep -n x tools/render.py | head; sed -n 1,5p tools/render.py")
+           and "render.py movie" in rp("cd /x && timeout 900 python3 tools/render.py movie musketeer 2>&1 | tail -3")
+           and "render.py" in rp('python3 "tools/render.py" stills musketeer')
+           and "render.py" in rp("FOO=1 nice python3 tools/render.py stills musketeer"),
+           "run_part: only the parts of a command that run count; quoted paths still do, messages do not")
+    d2 = mkrepo(art=False, prod=True); hook("start", d2)
+    write(d2, ".art-pipeline.json", json.dumps({"producer_commands": [r"tools/render\.py"]}))
+    rc, out, _ = hook("pre", d2, {"tool_name": "Bash", "tool_input": {"command": "git add tools/render.py"}})
+    rc2, out2, _ = hook("pre", d2, {"tool_name": "Bash", "tool_input": {"command": "python3 tools/render.py stills x"}})
+    report(out.strip() == "" and "deny" in out2,
+           "pre: git add of a build tool is not a build; running it still is")
+
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")
 

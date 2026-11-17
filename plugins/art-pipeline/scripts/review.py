@@ -2,6 +2,7 @@
 """review.py - write review records and show gate status. Shares artlib with the Stop gate.
 
   review.py record --model PATH --sheet PNG --verdict pass|fail|waived --seen "TEXT"
+  review.py clip --item NAME --clips C [C ...] --views top side ... --sheet PNG --verdict pass --seen "TEXT"
   review.py status
 Run from inside the repo. Stdlib only."""
 
@@ -27,6 +28,14 @@ def main(argv):
     r.add_argument("--sheet", required=True)
     r.add_argument("--verdict", required=True, choices=["pass", "fail", "waived"])
     r.add_argument("--seen", required=True)
+    c = sub.add_parser("clip", help="record a review of an animation clip (needed before a movie or "
+                                     "export when the project sets clip_review_views)")
+    c.add_argument("--item", required=True, help="the approved item's name, as in its spec")
+    c.add_argument("--clips", nargs="+", required=True, help="the clips the sheet shows")
+    c.add_argument("--views", nargs="+", required=True, help="the views the sheet shows, e.g. top side front")
+    c.add_argument("--sheet", required=True)
+    c.add_argument("--verdict", required=True, choices=["pass", "fail", "waived"])
+    c.add_argument("--seen", required=True)
     sub.add_parser("status")
     a = ap.parse_args(argv[1:])
     info = artlib.repo_info(os.getcwd())
@@ -35,6 +44,28 @@ def main(argv):
         return 2
     root, gitdir = info
     cfg = artlib.load_config(root)
+    if a.cmd == "clip":
+        sheet = rel(root, a.sheet)
+        errs = []
+        if not os.path.isfile(os.path.join(root, sheet)):
+            errs.append("sheet %s does not exist" % sheet)
+        if len(a.seen.strip()) < artlib.MIN_SEEN:
+            errs.append("--seen must be >= %d chars (say what you saw)" % artlib.MIN_SEEN)
+        lack = [v for v in cfg.get("clip_review_views") or [] if v.lower() not in {x.lower() for x in a.views}]
+        if lack:
+            errs.append("this project's clip reviews must show the %s view (--views)" % ", ".join(lack))
+        if errs:
+            print("review.py: " + "; ".join(errs), file=sys.stderr)
+            return 1
+        d = os.path.join(root, cfg["review_dir"])
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, artlib.clip_record_name(a.item, a.clips))
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"item": a.item, "clips": a.clips, "views": a.views, "sheet": sheet, "verdict": a.verdict,
+                       "seen": a.seen, "date": artlib.now()}, fh, indent=2)
+            fh.write("\n")
+        print(path)
+        return 0
     if a.cmd == "record":
         model, sheet = rel(root, a.model), rel(root, a.sheet)
         errs = []
