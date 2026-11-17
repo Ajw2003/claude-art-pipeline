@@ -14,6 +14,8 @@ DEFAULT_EXCLUDE = ["node_modules/", "Library/", "Temp/", ".git/"]
 DEFAULT_REVIEW_DIR = "docs/art/reviews"
 MIN_SEEN = 40
 IMG_EXT = (".png", ".jpg", ".jpeg", ".webp")
+AUDIO_EXT = (".wav", ".ogg", ".mp3", ".flac")
+VIDEO_EXT = (".mp4", ".webm")
 MAX_BLOCKS = 3
 DOC_PATHS = ["docs/**", "**/*.json"]
 DOC_TIMEOUT = 60
@@ -168,16 +170,31 @@ def ledger_path(gitdir, session_id):
 
 def load_ledger(path):
     if not os.path.exists(path):
-        return {"start": "", "seen": [], "blocks": {}, "granted": [], "iter": {}}
+        return new_ledger("")
     with open(path, "r", encoding="utf-8") as fh:
         led = json.load(fh)
     if not isinstance(led, dict) or not isinstance(led.get("seen"), list):
         raise ValueError("ledger %s has the wrong shape" % path)
-    led.setdefault("start", "")
-    led.setdefault("blocks", {})
-    led.setdefault("granted", [])
-    led.setdefault("iter", {})
+    for k, v in new_ledger("").items():
+        led.setdefault(k, v)
     return led
+
+
+def new_ledger(start, known=None):
+    """known: art file -> sha already accepted (dirty at session start, or built under an approval);
+    t0: when the running Bash call started; counted: whether pre already charged it to a budget."""
+    return {"start": start, "seen": [], "blocks": {}, "granted": [], "iter": {},
+            "known": known or {}, "t0": 0, "counted": False}
+
+
+def changed_art(root, cfg):
+    """{art file: sha} for every art file that differs from HEAD or is untracked, and exists."""
+    out = {}
+    for n in changed_files(root, ""):
+        a = os.path.join(root, n)
+        if is_production(n, cfg) and os.path.isfile(a):
+            out[n] = sha(a)
+    return out
 
 
 def save_ledger(path, led):
@@ -259,13 +276,14 @@ def evaluate(root, gitdir, session_id):
             res.append((m, st, pr))
     approvals = load_approvals(root, cfg, led)
     for sid, rec, pr in approvals:
-        rel = "%s/%s.json" % (cfg["approval_dir"].strip("/"), sid)
-        if rec is None and rel in names:
-            res.append((rel, "fail", pr))
+        if rec is None:  # "forged" never releases the stop: a fake approval must be removed, not outlasted
+            res.append(("%s/%s.json" % (cfg["approval_dir"].strip("/"), sid), "forged",
+                        pr + ["remove it with git rm; only a human grant writes approvals"]))
     for n in names:
         if is_production(n, cfg) and os.path.isfile(os.path.join(root, n)):
-            if not any(not pr for _, _, pr in covering(n, approvals)):
-                why = [x for _, _, pr in covering(n, approvals) for x in pr] or \
+            cov = covering(n, approvals)
+            if not any(not pr for _, _, pr in cov):  # a spent budget does not undo what was built within it
+                why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
                 res.append((n, "fail", why))
     dc = run_doc_check(root, cfg, names)
@@ -285,26 +303,87 @@ def fix_hint(cfg):
 
 
 # --- specs and human approvals ----------------------------------------------------------
-# A spec (<spec_dir>/<id>.json) says what will be made and what real-world reference it is made
-# from. Only a human approves one: by answering "Approve" to an AskUserQuestion that carries the
-# spec's token (hook.py records it), or with `approve.py grant` in a real terminal. Claude's tools
-# cannot write the approval folder or the config. An approval counts only if this session's hook
-# wrote it or it was committed, unchanged, before the session started.
+# A spec (<spec_dir>/<id>.json) lists one or more items (an enemy, a prop, a sound set), and for
+# each item the parts to make (model, animation, texture, sfx...) with real-world reference per
+# part. Only a human approves one: by answering "Approve" to an AskUserQuestion that carries the
+# spec's token (hook.py records it), or with `approve.py grant` in a real terminal. An approval
+# counts only if this session's hook wrote it or it was committed, unchanged, before the session
+# started. Text limits keep the review sheet short enough to read the same way every time.
 
 TOKEN = re.compile(r"art-approve:([a-z0-9][a-z0-9_-]*)@([0-9a-f]{12})")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+# Fixed on purpose, not per project: every review sheet keeps the same shape and length.
+LIMITS = {"title": 60, "name": 40, "shows": 120, "pose": 100, "check": 100}
+MAX_CHECKS = 3
 
 
 def spec_path(root, cfg, sid):
     return os.path.join(root, cfg["spec_dir"], sid + ".json")
 
 
+def sheet_path(root, cfg, sid):
+    return os.path.join(root, cfg["spec_dir"], sid + ".sheet.html")
+
+
 def approval_path(root, cfg, sid):
     return os.path.join(root, cfg["approval_dir"], sid + ".json")
 
 
-def _text(v, n):
-    return isinstance(v, str) and len(v.strip()) >= n
+def _text(v, lo, hi=10 ** 6):
+    return isinstance(v, str) and lo <= len(v.strip()) <= hi
+
+
+def slugify(name):
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _check_part(root, cfg, where, kind, part, probs):
+    """Validates one part of one item, appending to probs."""
+    if kind not in KINDS:
+        probs.append("%s: part %r must be one of %s" % (where, kind, ", ".join(KINDS)))
+        return
+    part = part if isinstance(part, dict) else {}
+    w = "%s %s" % (where, kind)
+    refs = part.get("references")
+    files = []
+    if not isinstance(refs, list) or not refs:
+        probs.append("%s: needs real-world references [{file, source, shows}]" % w)
+        refs = []
+    for i, r in enumerate(refs):
+        r = r if isinstance(r, dict) else {}
+        f = r.get("file") if isinstance(r.get("file"), str) else ""
+        if not f or not _under(f, cfg["reference_dir"]):
+            probs.append("%s: reference %d must be a file under %s/" % (w, i + 1, cfg["reference_dir"]))
+        elif not os.path.isfile(os.path.join(root, f)):
+            probs.append("%s: reference %s does not exist" % (w, f))
+        else:
+            files.append(f)
+        if not _text(r.get("source"), 10):
+            probs.append("%s: reference %d needs \"source\", a URL or citation (>= 10 chars)" % (w, i + 1))
+        if not _text(r.get("shows"), 10, LIMITS["shows"]):
+            probs.append("%s: reference %d needs \"shows\", what to take from it (10-%d chars)" % (w, i + 1, LIMITS["shows"]))
+    want = AUDIO_EXT if kind in AUDIO_KINDS else IMG_EXT
+    if refs and not any(f.lower().endswith(want) for f in files):
+        probs.append("%s: needs at least one %s reference (%s)" % (
+            w, "audio" if kind in AUDIO_KINDS else "image", "/".join(want)))
+    checks = part.get("check")
+    if not isinstance(checks, list) or not 1 <= len(checks) <= MAX_CHECKS or \
+            not all(_text(c, 10, LIMITS["check"]) for c in checks):
+        probs.append("%s: needs \"check\", 1-%d things to compare with the reference (10-%d chars each)"
+                     % (w, MAX_CHECKS, LIMITS["check"]))
+    if kind == "animation":
+        kp = part.get("key_poses")
+        if not isinstance(kp, list) or not kp:
+            probs.append("%s: needs \"key_poses\" [{at, ref, pose}], each taken from a reference image" % w)
+        for i, k in enumerate(kp if isinstance(kp, list) else []):
+            k = k if isinstance(k, dict) else {}
+            ref = k.get("ref") if isinstance(k.get("ref"), str) else ""
+            if ref not in files or not ref.lower().endswith(IMG_EXT):
+                probs.append("%s: key pose %d \"ref\" must be one of this part's reference images" % (w, i + 1))
+            if not _text(k.get("at"), 1, 20) or not _text(k.get("pose"), 10, LIMITS["pose"]):
+                probs.append("%s: key pose %d needs \"at\" and \"pose\" (10-%d chars)" % (w, i + 1, LIMITS["pose"]))
+    if kind in AUDIO_KINDS and not isinstance(part.get("duration_s"), (int, float)):
+        probs.append("%s: needs \"duration_s\"" % w)
 
 
 def validate_spec(root, cfg, sid):
@@ -324,58 +403,45 @@ def validate_spec(root, cfg, sid):
     probs = []
     if s.get("id") != sid:
         probs.append("\"id\" must equal the file name (%s)" % sid)
-    kind = s.get("kind")
-    if kind not in KINDS:
-        probs.append("\"kind\" must be one of %s" % ", ".join(KINDS))
-    if not _text(s.get("summary"), 20):
-        probs.append("\"summary\" must say what is being made (>= 20 chars)")
-    refs = s.get("references")
-    ref_files = []
-    if not isinstance(refs, list) or not refs:
-        probs.append("\"references\" must list at least one real-world reference: "
-                     "{\"file\", \"source\", \"shows\"}")
-        refs = []
-    for i, r in enumerate(refs):
-        r = r if isinstance(r, dict) else {}
-        f = r.get("file") if isinstance(r.get("file"), str) else ""
-        if not f or not _under(f, cfg["reference_dir"]):
-            probs.append("references[%d].file must be a file under %s/" % (i, cfg["reference_dir"]))
-        elif not os.path.isfile(os.path.join(root, f)):
-            probs.append("references[%d].file %s does not exist" % (i, f))
-        else:
-            ref_files.append(f)
-        if not _text(r.get("source"), 10):
-            probs.append("references[%d].source must name where it came from: a URL or a citation (>= 10 chars)" % i)
-        if not _text(r.get("shows"), 20):
-            probs.append("references[%d].shows must say what it shows and what to take from it (>= 20 chars)" % i)
-    if kind not in AUDIO_KINDS and not any(f.lower().endswith(IMG_EXT) for f in ref_files):
-        probs.append("kind %s needs at least one image reference (%s) that can be opened and compared"
-                     % (kind, "/".join(IMG_EXT)))
-    acc = s.get("acceptance")
-    if not isinstance(acc, list) or not acc or not all(_text(a, 10) for a in acc):
-        probs.append("\"acceptance\" must list what the human will check against the reference (each >= 10 chars)")
-    paths = s.get("paths")
-    if not isinstance(paths, list) or not paths or not all(isinstance(g, str) and g for g in paths):
-        probs.append("\"paths\" must list the globs of every file this work writes")
-    match = s.get("match", [sid])
-    if not isinstance(match, list) or not all(isinstance(t, str) and len(t) >= 3 for t in match):
-        probs.append("\"match\" must list words (>= 3 chars) that name this asset in a build command")
+    if not _text(s.get("title"), 5, LIMITS["title"]):
+        probs.append("\"title\" must name the batch (5-%d chars)" % LIMITS["title"])
     it = s.get("iterations", DEFAULT_ITERATIONS)
     if not isinstance(it, int) or isinstance(it, bool) or not 1 <= it <= MAX_ITERATIONS:
-        probs.append("\"iterations\" must be a whole number from 1 to %d" % MAX_ITERATIONS)
-    if kind == "animation":
-        kp = s.get("key_poses")
-        if not isinstance(kp, list) or not kp:
-            probs.append("an animation needs \"key_poses\": [{\"at\", \"ref\", \"pose\"}], each taken from a reference")
-        for i, k in enumerate(kp if isinstance(kp, list) else []):
-            k = k if isinstance(k, dict) else {}
-            if k.get("ref") not in ref_files:
-                probs.append("key_poses[%d].ref must be one of the reference files" % i)
-            if not _text(k.get("at"), 1) or not _text(k.get("pose"), 10):
-                probs.append("key_poses[%d] needs \"at\" (time or frame) and \"pose\" (>= 10 chars, as seen in the reference)" % i)
-    if kind in AUDIO_KINDS and not isinstance(s.get("duration_s"), (int, float)):
-        probs.append("kind %s needs \"duration_s\"" % kind)
+        probs.append("\"iterations\" (builds per item) must be a whole number from 1 to %d" % MAX_ITERATIONS)
+    items = s.get("items")
+    if not isinstance(items, list) or not items:
+        probs.append("\"items\" must list at least one item: {name, parts, paths}")
+        items = []
+    names = set()
+    for n, item in enumerate(items):
+        item = item if isinstance(item, dict) else {}
+        name = item.get("name")
+        where = "item %d" % (n + 1)
+        if not _text(name, 2, LIMITS["name"]):
+            probs.append("%s: needs \"name\" (2-%d chars)" % (where, LIMITS["name"]))
+            name = ""
+        else:
+            where = name
+            if slugify(name) in names:
+                probs.append("%s: two items have this name" % name)
+            names.add(slugify(name))
+        parts = item.get("parts")
+        if not isinstance(parts, dict) or not parts:
+            probs.append("%s: needs \"parts\", e.g. {\"model\": {...}, \"animation\": {...}, \"sfx\": {...}}" % where)
+            parts = {}
+        for kind, part in parts.items():
+            _check_part(root, cfg, where, kind, part, probs)
+        paths = item.get("paths")
+        if not isinstance(paths, list) or not paths or not all(isinstance(g, str) and g for g in paths):
+            probs.append("%s: needs \"paths\", the globs of every file it writes" % where)
+        match = item.get("match", [slugify(name)])
+        if not isinstance(match, list) or not match or not all(isinstance(t, str) and len(t) >= 3 for t in match):
+            probs.append("%s: \"match\" must list words (>= 3 chars) that name it in a build command" % where)
     return s, probs
+
+
+def spec_refs(spec):
+    return sorted({r["file"] for item in spec["items"] for part in item["parts"].values() for r in part["references"]})
 
 
 def spec_token(root, cfg, sid):
@@ -383,11 +449,16 @@ def spec_token(root, cfg, sid):
 
 
 def make_approval(root, cfg, sid, spec, by, answer):
-    """The approval record a human grant writes: hashes lock the spec and every reference."""
-    return {"id": sid, "kind": spec["kind"], "spec": "%s/%s.json" % (cfg["spec_dir"], sid),
+    """The approval record a human grant writes: hashes lock the spec, the sheet and every reference."""
+    sp = sheet_path(root, cfg, sid)
+    return {"id": sid, "spec": "%s/%s.json" % (cfg["spec_dir"], sid),
             "spec_sha": sha(spec_path(root, cfg, sid)),
-            "references": {r["file"]: sha(os.path.join(root, r["file"])) for r in spec["references"]},
-            "paths": spec["paths"], "match": spec.get("match", [sid]),
+            "sheet_sha": sha(sp) if os.path.isfile(sp) else "",
+            "references": {f: sha(os.path.join(root, f)) for f in spec_refs(spec)},
+            "items": [{"name": it["name"], "match": it.get("match", [slugify(it["name"])]), "paths": it["paths"],
+                       "images": sorted({r["file"] for p in it["parts"].values() for r in p["references"]
+                                         if r["file"].lower().endswith(IMG_EXT)})}
+                      for it in spec["items"]],
             "iterations": spec.get("iterations", DEFAULT_ITERATIONS),
             "approved_by": by, "answer": answer, "date": now(), "grant": os.urandom(8).hex()}
 
@@ -412,6 +483,13 @@ def _committed_at(root, start, rel):
         return None
 
 
+def human_granted(root, led, rel):
+    """True when the approval file at rel was written by a human grant: recorded this session, or
+    committed unchanged before the session started."""
+    h = sha(os.path.join(root, rel))
+    return h in led["granted"] or _committed_at(root, led["start"], rel) == h
+
+
 def load_approvals(root, cfg, led):
     """[(id, record or None, [problems])] for every file in the approval folder."""
     d = os.path.join(root, cfg["approval_dir"])
@@ -423,12 +501,11 @@ def load_approvals(root, cfg, led):
             continue
         rel = "%s/%s" % (cfg["approval_dir"].strip("/"), f)
         sid = f[:-5]
-        probs = []
-        h = sha(os.path.join(d, f))
-        if h not in led["granted"] and _committed_at(root, led["start"], rel) != h:
+        if not human_granted(root, led, rel):
             out.append((sid, None, ["%s was not written by a human grant: not recorded this session and "
                                     "not committed before it started" % rel]))
             continue
+        probs = []
         try:
             with open(os.path.join(d, f), "r", encoding="utf-8") as fh:
                 rec = json.load(fh)
@@ -439,10 +516,12 @@ def load_approvals(root, cfg, led):
                 rp = os.path.join(root, rf)
                 if not os.path.isfile(rp) or sha(rp) != rh:
                     probs.append("reference %s is missing or changed since approval" % rf)
+            for it in rec["items"]:
+                it["name"], it["paths"], it["match"], it["images"]  # noqa: B018 - shape check
         except Exception as exc:
             out.append((sid, None, ["%s is unreadable (%s)" % (rel, exc)]))
             continue
-        rec["_sha"] = h  # the build budget is counted per grant, so a re-approval starts it again
+        rec["_sha"] = sha(os.path.join(d, f))  # the budget is counted per grant, so a re-approval starts it again
         out.append((sid, rec, probs))
     return out
 
@@ -451,27 +530,49 @@ def seen_paths(led):
     return {norm(e["path"]) for e in led["seen"] if isinstance(e, dict) and "path" in e}
 
 
-def usable(root, rec, led):
-    """Problems that stop a valid approval being used right now (reference not looked at, budget spent)."""
+def budget_key(rec, item):
+    return "%s:%s" % (rec["_sha"], slugify(item["name"]))
+
+
+def usable(root, rec, item, led):
+    """Problems that stop an item of a valid approval being built right now."""
     probs = []
-    imgs = [f for f in rec["references"] if f.lower().endswith(IMG_EXT)]
     seen = seen_paths(led)
-    if imgs and not any(norm(os.path.join(root, f)) in seen for f in imgs):
-        probs.append("open a reference image with Read before building %s (%s)" % (rec["id"], imgs[0]))
-    used = led["iter"].get(rec["_sha"], 0)
-    if used >= rec["iterations"]:
+    if item["images"] and not any(norm(os.path.join(root, f)) in seen for f in item["images"]):
+        probs.append("open a reference image of %s with Read before building it (%s)" % (item["name"], item["images"][0]))
+    if led["iter"].get(budget_key(rec, item), 0) >= rec["iterations"]:
         probs.append("%s has used all %d builds the human approved. Stop refining: show the human the "
                      "last render beside its reference and ask them to accept it, add reference, or "
-                     "re-approve for more builds" % (rec["id"], rec["iterations"]))
+                     "re-approve for more builds" % (item["name"], rec["iterations"]))
     return probs
 
 
 def covering(rel, approvals):
-    return [(sid, rec, pr) for sid, rec, pr in approvals if rec and matches(rel, rec["paths"])]
+    """[(rec, item, problems)] for every approved item whose paths include rel."""
+    return [(rec, it, pr) for _, rec, pr in approvals if rec for it in rec["items"] if matches(rel, it["paths"])]
+
+
+def named_in(cmd, approvals):
+    """[(rec, item, problems)] for every approved item a word of whose "match" is in cmd."""
+    low = cmd.lower()
+    return [(rec, it, pr) for _, rec, pr in approvals if rec for it in rec["items"]
+            if any(t.lower() in low for t in it["match"])]
+
+
+def ready(root, cands, led):
+    """Splits (rec, item, problems) into the usable (rec, item) pairs and the reasons the rest are not."""
+    ok, why = [], []
+    for rec, it, pr in cands:
+        p = pr or usable(root, rec, it, led)
+        if p:
+            why.extend(p)
+        else:
+            ok.append((rec, it))
+    return ok, why
 
 
 def approval_hint(cfg):
     return ("write a spec at %s/<id>.json with real-world reference saved under %s/ (see the art-pipeline "
-            "skill, stage 2), run python \"%s\" check <id>, then ask the human with the AskUserQuestion it "
-            "prints. Do not make the asset first." % (cfg["spec_dir"], cfg["reference_dir"],
-                                                      os.path.join(HERE, "approve.py")))
+            "skill), run python \"%s\" check <id>, show the human the review sheet it writes, then ask "
+            "with the AskUserQuestion it prints. Do not make the asset first." % (
+                cfg["spec_dir"], cfg["reference_dir"], os.path.join(HERE, "approve.py")))

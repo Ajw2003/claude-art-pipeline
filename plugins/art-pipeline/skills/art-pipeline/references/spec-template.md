@@ -1,52 +1,87 @@
-# Asset spec template: what a human approves before anything is made
+# Spec template: what a human approves before anything is made
 
-Save one spec per asset (or per tight family, such as one enemy's attack clips) as
-`docs/art/specs/<id>.json`. The `id` is lowercase letters, digits, `-` or `_`, and equals the file
-name. `approve.py check <id>` lists every missing field; nothing can be built until it passes and a
-human approves it.
+A spec is one batch of work the human approves in one go: one asset, or several items together
+(say four enemies of one Age), as long as every part of every item has its own reference. Save it
+as `docs/art/specs/<id>.json`; the `id` is lowercase letters, digits, `-` or `_`, and equals the
+file name.
+
+`approve.py check <id>` lists every problem by item and part. When there are none, it writes the
+review sheet `docs/art/specs/<id>.sheet.html` and prints the question to ask. The sheet is the
+only thing the human reviews, and it always has the same layout: one card per item; inside it,
+the parts in a fixed order (model, rig, texture, sprite, UI art, animation, VFX, sound, music);
+for each part the reference shown large with one line on what to take from it, the key poses as
+a strip, and at most three tick boxes. Commit the spec and the sheet.
 
 ```json
 {
-  "id": "musketeer-aim",
-  "kind": "animation",
-  "summary": "Musketeer lays the musket in the rest's fork and brings the butt to the cheek",
-  "references": [
+  "id": "powder-soldiers",
+  "title": "Powder Age: Musketeer and Petardier",
+  "iterations": 6,
+  "items": [
     {
-      "file": "docs/art/reference/musketeer-aim/de-gheyn-plate-32.jpg",
-      "source": "Jacob de Gheyn, Wapenhandelinghe (1607), plate 32, Wikimedia Commons",
-      "shows": "barrel resting in the fork, butt at the cheek, left hand on the rest below the fork"
+      "name": "Musketeer",
+      "match": ["musketeer"],
+      "paths": ["Tools/ArtForge/anim_forge/*", "Assets/Models/ArtBible/Animations/Musketeer*"],
+      "parts": {
+        "animation": {
+          "references": [
+            {"file": "docs/art/reference/powder-soldiers/de-gheyn-32.jpg",
+             "source": "Jacob de Gheyn, Wapenhandelinghe (1607), plate 32, Wikimedia Commons",
+             "shows": "barrel laid in the rest's fork, butt at the cheek"}
+          ],
+          "key_poses": [
+            {"at": "1.2 s", "ref": "docs/art/reference/powder-soldiers/de-gheyn-32.jpg",
+             "pose": "barrel in the fork, butt at the cheek"}
+          ],
+          "check": ["the 1.2 s frame matches plate 32 side by side"]
+        },
+        "sfx": {
+          "references": [
+            {"file": "docs/art/reference/powder-soldiers/matchlock.ogg",
+             "source": "freesound.org/s/<id>, CC0", "shows": "a sharp crack with a long tail"}
+          ],
+          "duration_s": 1.4,
+          "check": ["crack first, then the tail, like the recording"]
+        }
+      }
+    },
+    {
+      "name": "Petardier",
+      "paths": ["Assets/Models/ArtBible/Enemies/Powder/Petardier/*"],
+      "parts": {
+        "model": {
+          "references": [
+            {"file": "docs/art/reference/powder-soldiers/petard-engraving.jpg",
+             "source": "Rijksmuseum open-access collection, public domain",
+             "shows": "the bell-shaped petard on its plank"}
+          ],
+          "check": ["petard size against the 1.80 m figure"]
+        }
+      }
     }
-  ],
-  "key_poses": [
-    {"at": "0.0 s", "ref": "docs/art/reference/musketeer-aim/de-gheyn-plate-31.jpg",
-     "pose": "musket shouldered, rest trailed in the left hand"},
-    {"at": "1.2 s", "ref": "docs/art/reference/musketeer-aim/de-gheyn-plate-32.jpg",
-     "pose": "barrel in the fork, butt at the cheek, eye along the barrel"}
-  ],
-  "acceptance": [
-    "the final frame matches plate 32's silhouette when set side by side",
-    "the barrel sits in the fork on every frame after 1.2 s"
-  ],
-  "paths": ["Tools/ArtForge/anim_forge/*", "Assets/Models/ArtBible/Animations/*"],
-  "match": ["musketeer"],
-  "iterations": 6
+  ]
 }
 ```
 
 ## Fields
 
-| Field | Required | Rule |
+| Field | Where | Rule |
 |---|---|---|
-| `id` | yes | equals the file name |
-| `kind` | yes | `animation`, `model`, `rig`, `vfx`, `sfx`, `music`, `texture`, `sprite`, `ui` or `other` |
-| `summary` | yes | at least 20 characters saying what is made |
-| `references` | yes | at least one, each a file under `docs/art/reference/`, with `source` (a URL or a citation) and `shows` (what to take from it). Every kind except `sfx` and `music` needs at least one image |
-| `acceptance` | yes | what the human will check against the reference, each line checkable by looking |
-| `paths` | yes | globs of every file this work writes: generators, solvers and outputs. Only these become writable |
-| `match` | no | words that name this asset in a build command (default: the id). A build command runs only if it contains one |
-| `iterations` | no | how many build or render runs the human allows before it comes back to them (default 5, at most 20) |
-| `key_poses` | animation | each `{at, ref, pose}`: a time, the reference file it is taken from, and the pose as seen there |
+| `id` | spec | equals the file name |
+| `title` | spec | 5-60 characters |
+| `iterations` | spec | builds allowed **per item**, 1-20 (default 5); a re-approval starts them again |
+| `items` | spec | at least one |
+| `name` | item | 2-40 characters, unique in the spec |
+| `paths` | item | globs of every file this item may write: generators, solvers and outputs |
+| `match` | item | words that name the item in a build command (default: the name as a slug) |
+| `parts` | item | one or more of `model`, `rig`, `texture`, `sprite`, `ui`, `animation`, `vfx`, `sfx`, `music`, `other` |
+| `references` | part | at least one `{file, source, shows}`: a file under `docs/art/reference/`, where it came from (URL or citation), and what to take from it (10-120 characters). Visual parts need an image; `sfx` and `music` need an audio file. Video (`.mp4`, `.webm`) may sit beside them |
+| `check` | part | 1-3 things the human compares with the reference, 10-100 characters each |
+| `key_poses` | animation | each `{at, ref, pose}`: a time, one of the part's reference images, and the pose as it appears there (10-100 characters) |
 | `duration_s` | sfx, music | length in seconds |
+
+The length limits are fixed on purpose: every sheet reads the same way, and nothing on it is long.
+The embedded reference must stay under 15 MB, so save reference at screen size, not print size.
 
 ## What counts as reference
 
@@ -57,4 +92,11 @@ collections, the CMU Graphics Lab Motion Capture Database (free to use), Freesou
 licence). Record the licence in `source` when it is not public domain.
 
 For motion, a mocap take or a video is the best reference; a still plate fixes the key poses. Save
-the frames you take key poses from as images, so they can be opened and compared.
+the frames you take key poses from as images, so they show on the sheet and can be compared.
+
+## What an approval unlocks
+
+For each item, once the human approves and one of that item's reference images has been opened:
+writes to the item's `paths`, and build commands naming one of its `match` words, until its
+`iterations` are spent. Everything else that counts as art stays locked. Art a command makes
+outside an approval is put back at once; a copy is kept in `.git/art-pipeline/quarantine/`.

@@ -30,12 +30,14 @@ pipeline's own concept sheets and renders are never reference. If the reference 
 from this machine, ask the human for it or for the host to be allowed; do not reason out what it
 would show.
 
-**The spec** (`docs/art/specs/<id>.json`, from `spec-template.md`) names the reference, the key
-poses or features taken from it, what the human will check, every path the work writes, and the
-build budget. `approve.py check <id>` validates it and prints the AskUserQuestion to send. The
-human's "Approve" is the only thing that writes `docs/art/approvals/<id>.json`; the hooks refuse
-every write to an art path and every build command until that record exists, a reference image has
-been opened in the session, and the budget is not spent. Editing the spec or a reference after
+**The spec** (`docs/art/specs/<id>.json`, from `spec-template.md`) covers one item or a batch of
+items, and for each part of each item names the reference, the key poses taken from it, what the
+human will check, every path the work writes, and the build budget. `approve.py check <id>`
+validates it, writes the review sheet the human reviews (the same layout every time), and prints
+the AskUserQuestion to send. The human's "Approve" is the only thing that writes
+`docs/art/approvals/<id>.json`; the hooks refuse every write to an art path and every build command
+until that record covers the item, one of the item's reference images has been opened in the
+session, and its budget is not spent. Editing the spec or a reference after
 approval voids it.
 
 **Concept sheets**, where they help the human decide, go with the spec. One sheet per asset, drawn

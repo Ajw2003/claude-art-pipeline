@@ -62,14 +62,21 @@ Full detail per stage, with commands: `references/stages.md`.
    python "${CLAUDE_PLUGIN_ROOT}/scripts/approve.py" check <id>
    ```
 
-   It lists what is missing or prints the exact AskUserQuestion input to send. Send it as printed,
-   without `answers`: only the human's own "Approve" click writes the approval
+   One spec may hold several items (four enemies of one Age, say), each with its own reference
+   for every part it makes: model, animation, texture, sound. The check names each missing piece
+   by item and part. When it passes it writes the review sheet `docs/art/specs/<id>.sheet.html`,
+   which shows every reference large in the same layout every time. Send the human that sheet
+   (as a file or a published page) and commit it; never summarise it in its place. Then send the
+   AskUserQuestion it prints, as printed and without `answers`: only the human's own "Approve"
+   click writes the approval
    (`docs/art/approvals/<id>.json`, which you commit). A human at a terminal can instead run
    `approve.py grant <id>`. Approval files and `.art-pipeline.json` cannot be written by your tools.
    If the reference cannot be fetched (a blocked host), stop and ask the human for it; never
    substitute your own drawing or reasoning.
-3. **Respect the build budget.** Each approval allows `iterations` build or render runs (default
-   5). When they are spent the hook refuses more. Do not look for another route: show the human
+3. **Respect the build budget.** Each approved item allows `iterations` build or render runs
+   (default 5), counted whatever tool makes its files. When they are spent the hook refuses more,
+   and art any command makes outside an approval is put back straight away (a copy is kept in
+   `.git/art-pipeline/quarantine/`). Do not look for another route: show the human
    the last render beside its reference and ask whether to accept it, add reference, or re-approve.
    A fix that needs more than the budget is a sign that the reference or the spec is wrong.
 4. **Decisions that are the user's go to the user**, with a proposal page or a question: the look,

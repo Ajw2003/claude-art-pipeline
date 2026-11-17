@@ -1,6 +1,6 @@
 # art-pipeline
 
-STATUS: v0.2. A Claude Code plugin, split out of
+STATUS: v0.3. A Claude Code plugin, split out of
 [Ajw2003/AjsClaudeCodeTools](https://github.com/Ajw2003/AjsClaudeCodeTools) (same shape as its
 `house-rules` plugin: one `run.sh` shim, one stdlib Python file). Makes game art by code - models, animation, VFX, SFX, music, textures, sprites, UI art - and
 makes nothing until a human has approved a spec with real-world reference, then never calls a model
@@ -29,29 +29,33 @@ fits. The renders it uses need Blender's Python module; the skill's
 
 | Event | Handler | Does |
 |---|---|---|
-| `PreToolUse` (Write, Edit, MultiEdit, NotebookEdit, Bash, AskUserQuestion) | `pre` | Refuses a write to an art path, or a build command, unless a human approval covers it, one of its reference images was opened this session, and its build budget is not spent. Refuses any write to `docs/art/approvals/` or `.art-pipeline.json` (git may still commit them), `approve.py grant`, and an approval question sent with its answers already filled in. On an internal error it refuses calls that look like art and lets others through with a warning. |
-| `PostToolUse` (AskUserQuestion) | `answered` | When the human answers "Approve" to a question carrying a spec's token, writes `docs/art/approvals/<id>.json` (hashes of the spec and every reference) and records the grant in the session ledger. |
+| `PreToolUse` (Write, Edit, MultiEdit, NotebookEdit, Bash, AskUserQuestion) | `pre` | Refuses a write to an art path, or a build command, unless an approved item covers it, one of that item's reference images was opened this session, and its build budget is not spent. Refuses any change to `docs/art/approvals/`, `.art-pipeline.json`, `.claude/settings.json`, `.claude/settings.local.json` or the session ledger (git may still commit them), `approve.py grant`, `plugin disable`, an approval question sent with its answers filled in, and one whose review sheet is missing or not exactly what the spec renders to. On an internal error it refuses calls that look like art and lets others through with a warning. |
+| `PostToolUse` (Bash) | `after` | Right after every command: any art file it changed that no approved item covers, and any approval file no human grant wrote, is put back as it was at session start (a copy goes to `<git-dir>/art-pipeline/quarantine/`). Charges a build to an item whose files changed when the command was not a listed build tool. Art already changed when the session started, or changed outside the command's run, is left alone. About 0.05 s per command on a 9,600-file repo. |
+| `PostToolUse` (AskUserQuestion) | `answered` | When the human answers "Approve" to a question carrying a spec's token, writes `docs/art/approvals/<id>.json` (hashes of the spec, its sheet and every reference) and records the grant in the session ledger. |
 
 A spec is `docs/art/specs/<id>.json`
-(`plugins/art-pipeline/skills/art-pipeline/references/spec-template.md`). `approve.py check <id>`
-validates it and prints the question to ask; `approve.py status` lists specs and approvals;
-`approve.py grant <id>` is the human's own route from a real terminal. An approval counts only if
-this session's hook wrote it or it was committed, unchanged, before the session started, and only
-while its spec and references are unchanged. Each allows `iterations` runs of a build command
-(default 5); then the hook refuses builds and edits for it until the human approves again.
+(`plugins/art-pipeline/skills/art-pipeline/references/spec-template.md`): one or more items, each
+with parts (model, animation, texture, sound...) and real-world reference per part.
+`approve.py check <id>` validates it, writes the review sheet `docs/art/specs/<id>.sheet.html`
+(same layout every time, reference shown large) and prints the question to ask;
+`approve.py status` lists specs and approved items; `approve.py grant <id>` is the human's own
+route from a real terminal. An approval counts only if this session's hook wrote it or it was
+committed, unchanged, before the session started, and only while its spec and references are
+unchanged. Each item allows `iterations` builds (default 5); then the hook refuses builds and
+edits for it until the human approves again.
 
 What counts as art: `production_paths` (default: models, audio, `*.anim`, `*.bvh`, shaders,
 materials, layered image files, and anything under folders named art, audio, sound(s), sfx, music,
 textures, sprites, icons, vfx, particles, shaders, materials, animations, models or fonts), minus
 `production_exclude` (default `*.meta`, `docs/*`). Build commands: `producer_commands`, a list of
 regular expressions (default: `blender`). The spec, reference, approval and review folders are
-never art. The Stop gate also blocks on any changed art file no usable approval covers and on any
-approval file no human grant wrote.
+never art. The Stop gate also blocks on any changed art file no usable approval covers, and on any
+approval file no human grant wrote; that block is never released by the loop guard.
 
-Limits, stated plainly: the hooks stop an agent's tools, not a determined one. A script that the
-agent writes and runs can still write files the hook never sees; the Stop gate then catches the
-changed art file. The approval channel relies on Claude Code filling `answers` from the human's
-click.
+What is still open: a command started in the background that writes art after it returns is not
+seen by `after`; the Stop gate catches the file. The approval channel relies on Claude Code
+filling `answers` from the human's click, which has not been observed in a live session yet; if
+the answer is missing, nothing is approved and the hook says so.
 
 ## The review gate
 

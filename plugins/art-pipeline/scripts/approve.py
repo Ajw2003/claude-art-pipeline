@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """approve.py - human approval of art specs. Shares artlib with the hooks. Stdlib only.
 
-  approve.py check ID    validate docs/art/specs/ID.json; print the AskUserQuestion that asks the human
-  approve.py status      every spec and approval, and whether each can be built from right now
+  approve.py check ID    validate docs/art/specs/ID.json, write its review sheet
+                         (docs/art/specs/ID.sheet.html) and print the AskUserQuestion to send
+  approve.py status      every spec, every approved item, and whether each can be built now
   approve.py grant ID    the HUMAN's route from a real terminal; refuses without one
 Run from inside the repo."""
 
@@ -13,19 +14,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import artlib  # noqa: E402
+import sheet  # noqa: E402
 
 
 def question(root, cfg, sid, spec):
-    refs = "; ".join("%s (%s): %s" % (r["file"], r["source"], r["shows"]) for r in spec["references"])
-    poses = "".join("\nKey pose at %s, from %s: %s" % (k["at"], k["ref"], k["pose"]) for k in spec.get("key_poses", []))
-    text = ("%s\nApprove this %s spec before anything is made?\n%s\nReference: %s%s\nYou will check: %s\n"
-            "Writes: %s\nBuild budget: %d builds, then it comes back to you." % (
-                artlib.spec_token(root, cfg, sid), spec["kind"], spec["summary"], refs, poses,
-                "; ".join(spec["acceptance"]), ", ".join(spec["paths"]),
-                spec.get("iterations", artlib.DEFAULT_ITERATIONS)))
+    """Short on purpose: the sheet carries the detail, laid out the same way every time."""
+    names = ", ".join(it["name"] for it in spec["items"])
+    text = ("%s\nApprove \"%s\"? Review sheet: %s/%s.sheet.html\nItems: %s\nBudget: %d builds per item." % (
+        artlib.spec_token(root, cfg, sid), spec["title"], cfg["spec_dir"], sid, names,
+        spec.get("iterations", artlib.DEFAULT_ITERATIONS)))
     return {"questions": [{"question": text, "header": "Art spec", "multiSelect": False, "options": [
-        {"label": "Approve", "description": "The reference and spec are right; build it within the budget."},
-        {"label": "Revise", "description": "Do not build. Say what to change in the reference or spec."}]}]}
+        {"label": "Approve", "description": "The reference and checks are right. Build within the budget."},
+        {"label": "Revise", "description": "Do not build. Say what to change."}]}]}
 
 
 def latest_ledger(gitdir):
@@ -52,23 +52,38 @@ def main(argv):
         for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
             if f.endswith(".json"):
                 _, probs = artlib.validate_spec(root, cfg, f[:-5])
-                print("spec %-28s %s" % (f[:-5], "ready to ask" if not probs else "INCOMPLETE: " + "; ".join(probs)))
+                print("spec %s: %s" % (f[:-5], "ready to ask" if not probs else "INCOMPLETE"))
+                for p in probs:
+                    print("    - " + p)
         for sid, rec, pr in artlib.load_approvals(root, cfg, led):
-            pr = pr + (artlib.usable(root, rec, led) if rec else [])
-            used = led["iter"].get(rec["_sha"], 0) if rec else 0
-            print("approval %-24s %s" % (sid, ("usable, %d of %d builds used" % (used, rec["iterations"]))
-                                            if not pr else "NOT USABLE: " + "; ".join(pr)))
+            if rec is None or pr:
+                print("approval %s: NOT USABLE: %s" % (sid, "; ".join(pr)))
+                continue
+            for it in rec["items"]:
+                why = artlib.usable(root, rec, it, led)
+                used = led["iter"].get(artlib.budget_key(rec, it), 0)
+                print("approval %s / %s: %s" % (sid, it["name"], "usable, %d of %d builds used" % (used, rec["iterations"])
+                                                 if not why else "waiting: " + "; ".join(why)))
         return 0
     sid = argv[2]
     spec, probs = artlib.validate_spec(root, cfg, sid)
     if probs:
-        print("approve.py: spec %s is not ready for a human:" % sid, file=sys.stderr)
+        print("approve.py: spec %s is not ready for a human (%d problems):" % (sid, len(probs)), file=sys.stderr)
         for p in probs:
             print("  - " + p, file=sys.stderr)
         return 1
     if cmd == "check":
-        print("Spec %s is complete. Ask the human with exactly this AskUserQuestion input "
-              "(do not add \"answers\"):" % sid)
+        try:
+            page = sheet.render(root, cfg, sid, spec)
+        except ValueError as exc:
+            print("approve.py: " + str(exc), file=sys.stderr)
+            return 1
+        sp = artlib.sheet_path(root, cfg, sid)
+        with open(sp, "w", encoding="utf-8") as fh:
+            fh.write(page)
+        print("Spec %s is complete. Review sheet: %s" % (sid, os.path.relpath(sp, root).replace(os.sep, "/")))
+        print("1. Show the human the sheet (send the file, or publish it as a page) and commit it.")
+        print("2. Ask with exactly this AskUserQuestion input (do not add \"answers\"):")
         print(json.dumps(question(root, cfg, sid, spec), indent=2))
         return 0
     # grant: a person at a real terminal types the id back
@@ -79,9 +94,12 @@ def main(argv):
     if not sys.stdin.isatty() or (os.name != "nt" and tty is None):
         print("approve.py grant needs a real terminal: it is the human's command, not the agent's.", file=sys.stderr)
         return 1
+    if not sheet.is_current(root, cfg, sid, spec):
+        print("The review sheet is missing or out of date: run approve.py check %s first, then open it." % sid)
+        return 1
     print(question(root, cfg, sid, spec)["questions"][0]["question"])
     out, inp = (tty, tty) if tty else (sys.stdout, sys.stdin)
-    out.write("\nType the spec id (%s) to approve it, anything else to refuse: " % sid)
+    out.write("\nOpen the review sheet first. Type the spec id (%s) to approve it, anything else to refuse: " % sid)
     out.flush()
     if inp.readline().strip() != sid:
         print("Not approved.")
