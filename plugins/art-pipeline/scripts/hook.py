@@ -295,7 +295,8 @@ def bash_pre(root, gitdir, p, cmd):
     led["t0"], led["counted"], led["pre_use"] = time.time(), False, use
     led["check_cmd"] = ""
     approvals = None
-    if any(re.search(rx, cmd) for rx in cfg.get("gated_commands") or []):
+    runs = artlib.run_part(cmd)   # only the parts that run something: not git add, cat, a message
+    if any(re.search(rx, runs) for rx in cfg.get("gated_commands") or []):
         approvals = artlib.load_approvals(root, cfg, led)
         stale = []
         for _sid, rec, _pr in approvals:
@@ -308,7 +309,7 @@ def bash_pre(root, gitdir, p, cmd):
             artlib.save_ledger(path, led)
             return ("this command shows or exports art that has not passed its check: %s. A movie or "
                     "an export is made only from work a check has passed since its last edit." % "; ".join(stale))
-    if any(re.search(rx, cmd) for rx in cfg["producer_commands"]):
+    if any(re.search(rx, runs) for rx in cfg["producer_commands"]):
         approvals = approvals or artlib.load_approvals(root, cfg, led)
         ok, why = artlib.ready(root, artlib.named_in(cmd, approvals), led)
         if not ok:
@@ -318,7 +319,7 @@ def bash_pre(root, gitdir, p, cmd):
         for rec, it in ok:
             artlib.charge(led, rec, it, "running `%s`" % cmd.strip()[:70])
         led["counted"] = True
-    elif artlib.check_entries(cmd, cfg):
+    elif artlib.check_entries(runs, cfg):
         # a check is never a build. Its items are "pending" until `after` reads a pass from its
         # output: Claude Code runs no PostToolUse hook for a command that exits non-zero, so a
         # failing check never reaches `after`, and must not leave an older pass standing.

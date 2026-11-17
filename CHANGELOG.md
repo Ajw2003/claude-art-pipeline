@@ -6,7 +6,11 @@
   clip also needs a passing review that names the clip, lists the required views (a top view shows
   a prop inside the body; a side view cannot), and points at a sheet opened this session and newer
   than the item's last source edit. The checks of 0.4.0 measure; this makes someone look.
-- `verify.py`: 83 checks.
+- **Naming a build tool is not running it.** Build, check and gated patterns are matched only in
+  the parts of a command that run something: quoted text with spaces (commit messages, `-c`
+  programs) is dropped, and parts led by `git`, `cat`, `grep`, `sed`, `ls` and other read-only
+  programs are left out. `git add Tools/ArtForge/attack.py` had been charged as a build.
+- `verify.py`: 85 checks.
 
 ## 0.4.0 - 2026-11-17
 

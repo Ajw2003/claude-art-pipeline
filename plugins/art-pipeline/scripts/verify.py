@@ -644,6 +644,23 @@ try:
     report(dec == "deny" and "older than Musketeer's last source edit" in why,
            "clip review: an edit after the review needs a new render and review, even with a fresh check")
 
+    # a build tool named but not run (git add, grep, a commit message) is not a build
+    sys.path.insert(0, HERE)
+    import artlib as _al
+    rp = _al.run_part
+    report("render.py" not in rp("git add tools/render.py && git commit -m 'run render.py movie musketeer'")
+           and "render.py" not in rp("grep -n x tools/render.py | head; sed -n 1,5p tools/render.py")
+           and "render.py movie" in rp("cd /x && timeout 900 python3 tools/render.py movie musketeer 2>&1 | tail -3")
+           and "render.py" in rp('python3 "tools/render.py" stills musketeer')
+           and "render.py" in rp("FOO=1 nice python3 tools/render.py stills musketeer"),
+           "run_part: only the parts of a command that run count; quoted paths still do, messages do not")
+    d2 = mkrepo(art=False, prod=True); hook("start", d2)
+    write(d2, ".art-pipeline.json", json.dumps({"producer_commands": [r"tools/render\.py"]}))
+    rc, out, _ = hook("pre", d2, {"tool_name": "Bash", "tool_input": {"command": "git add tools/render.py"}})
+    rc2, out2, _ = hook("pre", d2, {"tool_name": "Bash", "tool_input": {"command": "python3 tools/render.py stills x"}})
+    report(out.strip() == "" and "deny" in out2,
+           "pre: git add of a build tool is not a build; running it still is")
+
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")
 

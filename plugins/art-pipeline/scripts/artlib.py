@@ -647,6 +647,29 @@ def check_verdict(entries, output):
 
 
 SHELL_WORDS = {"python", "python3", "cd", "sh", "bash", "env", "timeout", "nice", "time", "exec", "sudo"}
+# commands that only read or move text: a build tool named in them is not being run
+READ_ONLY = {"git", "cat", "less", "more", "head", "tail", "grep", "egrep", "rg", "ls", "wc", "diff", "echo",
+             "printf", "file", "stat", "sed", "awk", "find", "which", "type", "cd", "pushd", "popd", "true", "test"}
+WRAPPERS = {"timeout", "nice", "time", "env", "sudo", "exec", "command", "nohup"}
+
+
+def run_part(cmd):
+    """The parts of a shell command that run something, for matching build, check and gated patterns:
+    quoted text (commit messages, -c programs) is dropped, the command is split at ; & | && || and new
+    lines, and parts whose program only reads (git, cat, grep, sed, ls...) are left out. `git add
+    Tools/ArtForge/attack.py` named a build tool and was charged as a build."""
+    # a quoted single word (a path) stays; quoted text with spaces (a message, a -c program) goes
+    s = re.sub(r"'([^']*)'|\"((?:[^\"\\\\]|\\\\.)*)\"",
+               lambda m: " " if re.search(r"\s", m.group(1) if m.group(1) is not None else m.group(2))
+               else (m.group(1) if m.group(1) is not None else m.group(2)), cmd)
+    keep = []
+    for seg in re.split(r"&&|\|\||[;&|\n]", s):
+        toks = seg.split()
+        while toks and (re.match(r"^\w+=", toks[0]) or toks[0] in WRAPPERS or re.match(r"^-|^\d+[smh]?$", toks[0])):
+            toks = toks[1:]
+        if toks and os.path.basename(toks[0]) not in READ_ONLY:
+            keep.append(" ".join(toks))
+    return " ; ".join(keep)
 
 
 def cmd_words(cmd, patterns):
