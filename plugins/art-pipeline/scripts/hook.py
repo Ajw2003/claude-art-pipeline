@@ -101,11 +101,19 @@ def event_gate():
         emit({"systemMessage": "art-pipeline: gate is OFF (ART_PIPELINE=off); art was not checked."})
         return 0
     p = payload()
-    info = artlib.repo_info(where(p))
-    if not info:
+    sid = p.get("session_id")
+    infos = []
+    for info in [artlib.repo_info(where(p))] + artlib.registered_repos(sid):
+        if info and info[0] not in {r for r, _ in infos}:
+            infos.append(info)
+    if not infos:
         return 0
-    root, gitdir = info
-    cfg, led, res, bad = artlib.evaluate(root, gitdir, p.get("session_id"))
+    root, gitdir = infos[0]   # the loop guard's count lives in the first repo's ledger
+    cfg, led, res, bad = artlib.evaluate(root, gitdir, sid)
+    for oroot, ogit in infos[1:]:   # repos this session worked in from outside them
+        _c, _l, ores, obad = artlib.evaluate(oroot, ogit, sid)
+        res += [("%s: %s" % (os.path.basename(oroot), m), st, pr) for m, st, pr in ores]
+        bad += obad
     unmet = [(m, pr) for m, st, pr in res if st in ("fail", "forged")]
     forged = [m for m, st, _ in res if st == "forged"]
     waived = [m for m, st, _ in res if st == "waived"]
@@ -152,7 +160,8 @@ def deny(reason):
 
 SETTINGS = (".claude/settings.json", ".claude/settings.local.json")
 # what a Bash command may not name unless it is a git command: the human's files and the ledger
-BASH_GUARDED = r"\.art-pipeline\.json|\.claude/settings(\.local)?\.json|\.git/art-pipeline|git-dir\)?[\"']?/art-pipeline"
+BASH_GUARDED = r"\.art-pipeline\.json|\.claude/settings(\.local)?\.json|\.git/art-pipeline|git-dir\)?[\"']?/art-pipeline" \
+    r"|\.claude/art-pipeline"
 
 
 def _protected(cfg, rel):
@@ -166,17 +175,80 @@ def _sheet_ok(root, cfg, sid):
     return not probs and sheet.is_current(root, cfg, sid, spec)
 
 
+CD = re.compile(r"(?:^|[;&|(\s])(?:cd|pushd)\s+([\"']?)([^\s;&|)\"']+)\1")
+GIT_C = re.compile(r"\bgit\s+-C\s+([\"']?)([^\s;&|)\"']+)\1")
+ABS = re.compile(r"(?<![\w.:/])(/[^\s;&|)\"'<>]+)")
+
+
+def _repo_of(path):
+    """The repo holding path, or the nearest existing folder above it. A path inside a .git folder
+    belongs to the repo above it (git names no work tree from inside .git)."""
+    parts = path.split(os.sep)
+    d = os.sep.join(parts[:parts.index(".git")]) if ".git" in parts else path
+    while d and not os.path.isdir(d):
+        d = os.path.dirname(d)
+    return artlib.repo_info(d) if d else None
+
+
+def bash_repos(p):
+    """Every git repo a command can act in: the session's working directory, every folder it cds,
+    pushds or `git -C`s into, and the repo of every absolute path it names. Judged by the working
+    directory alone, `cd other-repo && render movie` was checked against the wrong repo's rules."""
+    cmd = (p.get("tool_input") or {}).get("command") or ""
+    base = where(p)
+    dirs = [base]
+    dirs += [os.path.join(base, os.path.expanduser(m.group(2))) for rx in (CD, GIT_C) for m in rx.finditer(cmd)]
+    dirs += [m.group(1) for m in ABS.finditer(cmd)]
+    out, seen = [], set()
+    for d in dirs:
+        d = os.path.normpath(d)
+        if d in seen:
+            continue
+        seen.add(d)
+        info = _repo_of(d)
+        if info and info[0] not in {r for r, _ in out}:
+            out.append(info)
+    return out
+
+
 def event_pre():
     """PreToolUse. Refuses art made without a usable human approval, and any write to what only the
     human may change."""
     if off():
         return 0
     p = payload()
-    info = artlib.repo_info(where(p))
+    tool, ti = p.get("tool_name", ""), p.get("tool_input") or {}
+    if tool == "Bash":
+        cmd = ti.get("command") or ""
+        if re.search(r"approve\.py[\"']?\s+grant", cmd):
+            return deny("approve.py grant is the human's terminal command; ask with AskUserQuestion instead.")
+        if re.search(r"plugins?\s+(disable|uninstall|remove)\b", cmd):
+            return deny("only the human turns plugins off.")
+        home = artlib.repo_info(where(p))
+        for root, gitdir in bash_repos(p):
+            if not home or root != home[0]:
+                artlib.register_repo(p.get("session_id"), root)   # the Stop gate checks it too
+            why = bash_pre(root, gitdir, p, cmd)
+            if why:
+                return deny(why)
+        return 0
+    if tool == "AskUserQuestion":
+        info = artlib.repo_info(where(p))
+    else:
+        fp = ti.get("file_path") or ti.get("notebook_path")
+        if not isinstance(fp, str):
+            return 0
+        absf = os.path.normpath(os.path.join(p.get("cwd") or os.getcwd(), fp))
+        reg = artlib.registry_dir()
+        if absf == reg or absf.startswith(reg + os.sep):
+            return deny("the session's repo list is kept by the plugin; it is not changed by hand.")
+        info = _repo_of(absf)
+        home = artlib.repo_info(where(p))
+        if info and (not home or info[0] != home[0]):
+            artlib.register_repo(p.get("session_id"), info[0])   # the Stop gate checks it too
     if not info:
         return 0
     root, gitdir = info
-    tool, ti = p.get("tool_name", ""), p.get("tool_input") or {}
     cfg = artlib.load_config(root)
     path = artlib.ledger_path(gitdir, p.get("session_id"))
     led = artlib.load_ledger(path)
@@ -193,36 +265,7 @@ def event_pre():
                 return deny("the review sheet for %s is missing or out of date; run approve.py check %s and show "
                             "the human the sheet before asking." % (sid, sid))
         return 0
-    if tool == "Bash":
-        cmd = ti.get("command") or ""
-        if re.search(r"approve\.py[\"']?\s+grant", cmd):
-            return deny("approve.py grant is the human's terminal command; ask with AskUserQuestion instead.")
-        if re.search(r"plugins?\s+(disable|uninstall|remove)\b", cmd):
-            return deny("only the human turns plugins off.")
-        if not cmd.lstrip().startswith("git ") and (
-                re.search(BASH_GUARDED, cmd) or cfg["approval_dir"].strip("/") in cmd):
-            return deny("%s, .art-pipeline.json, the plugin settings and the session ledger are changed only by "
-                        "a human grant or the human; read them with Read, commit them with git." % cfg["approval_dir"])
-        use = p.get("tool_use_id")
-        if use and use == led.get("pre_use"):
-            return 0  # a second copy of the plugin (user and project scope) already allowed this call
-        led["t0"], led["counted"], led["pre_use"] = time.time(), False, use
-        if any(re.search(rx, cmd) for rx in cfg["producer_commands"]):
-            ok, why = artlib.ready(root, artlib.named_in(cmd, artlib.load_approvals(root, cfg, led)), led)
-            if not ok:
-                return deny("this command builds art and cannot run yet: %s. %s" % (
-                    "; ".join(why) if why else "it names no approved item (a word from an item's \"match\")",
-                    "" if why else "To make art: " + artlib.approval_hint(cfg)))
-            for rec, it in ok:
-                k = artlib.budget_key(rec, it)
-                led["iter"][k] = led["iter"].get(k, 0) + 1
-            led["counted"] = True
-        artlib.save_ledger(path, led)
-        return 0
-    fp = ti.get("file_path") or ti.get("notebook_path")
-    if not isinstance(fp, str):
-        return 0
-    absf = os.path.normpath(os.path.join(p.get("cwd") or os.getcwd(), fp))
+    absf = os.path.normpath(os.path.join(p.get("cwd") or os.getcwd(), ti.get("file_path") or ti.get("notebook_path")))
     rel = os.path.relpath(absf, root).replace(os.sep, "/")
     if rel.startswith("../"):
         return 0
@@ -235,6 +278,58 @@ def event_pre():
         return 0
     return deny("%s is an art asset and cannot be written yet: %s" % (rel, "; ".join(why) if why else
                 "no human-approved item covers it. To make it: " + artlib.approval_hint(cfg)))
+
+
+def bash_pre(root, gitdir, p, cmd):
+    """The Bash checks for one repo the command can act in: None to allow, else the reason to refuse."""
+    cfg = artlib.load_config(root)
+    path = artlib.ledger_path(gitdir, p.get("session_id"))
+    led = artlib.load_ledger(path)
+    if not cmd.lstrip().startswith("git ") and (
+            re.search(BASH_GUARDED, cmd) or cfg["approval_dir"].strip("/") in cmd):
+        return ("%s, .art-pipeline.json, the plugin settings and the session ledger are changed only by "
+                "a human grant or the human; read them with Read, commit them with git." % cfg["approval_dir"])
+    use = p.get("tool_use_id")
+    if use and use == led.get("pre_use"):
+        return None  # a second copy of the plugin (user and project scope) already allowed this call
+    led["t0"], led["counted"], led["pre_use"] = time.time(), False, use
+    led["check_cmd"] = ""
+    approvals = None
+    if any(re.search(rx, cmd) for rx in cfg.get("gated_commands") or []):
+        approvals = artlib.load_approvals(root, cfg, led)
+        stale = []
+        for _sid, rec, _pr in approvals:
+            for it in (rec or {}).get("items", []):
+                if any(t.lower() in cmd.lower() for t in it["match"]):
+                    stale += artlib.check_state(root, cfg, led, it, gated_cmd=cmd)[1]
+        stale = list(dict.fromkeys(stale))   # two approvals of one item give one reason
+        if stale:
+            artlib.save_ledger(path, led)
+            return ("this command shows or exports art that has not passed its check: %s. A movie or "
+                    "an export is made only from work a check has passed since its last edit." % "; ".join(stale))
+    if any(re.search(rx, cmd) for rx in cfg["producer_commands"]):
+        approvals = approvals or artlib.load_approvals(root, cfg, led)
+        ok, why = artlib.ready(root, artlib.named_in(cmd, approvals), led)
+        if not ok:
+            return "this command builds art and cannot run yet: %s. %s" % (
+                "; ".join(why) if why else "it names no approved item (a word from an item's \"match\")",
+                "" if why else "To make art: " + artlib.approval_hint(cfg))
+        for rec, it in ok:
+            artlib.charge(led, rec, it, "running `%s`" % cmd.strip()[:70])
+        led["counted"] = True
+    elif artlib.check_entries(cmd, cfg):
+        # a check is never a build. Its items are "pending" until `after` reads a pass from its
+        # output: Claude Code runs no PostToolUse hook for a command that exits non-zero, so a
+        # failing check never reaches `after`, and must not leave an older pass standing.
+        led["check_cmd"] = cmd
+        approvals = approvals or artlib.load_approvals(root, cfg, led)
+        for _sid, rec, _pr in approvals:
+            for it in (rec or {}).get("items", []):
+                if any(t.lower() in cmd.lower() for t in it["match"]):
+                    led["checks"][artlib.check_key(it)] = {"verdict": "pending", "fp": "", "t": artlib.now(),
+                                                           "cmd": cmd.strip()[:120], "words": []}
+    artlib.save_ledger(path, led)
+    return None
 
 
 def pre_failed(detail):
@@ -269,52 +364,84 @@ def quarantine(root, gitdir, start, rel, stamp):
 
 
 def event_after():
-    """PostToolUse on Bash: whatever the command was, art it made without approval does not stay."""
+    """PostToolUse on Bash: whatever the command was, art it made without approval does not stay.
+    Run for every repo the command could act in (bash_repos), as `pre` is."""
     if off():
         return 0
     p = payload()
-    info = artlib.repo_info(where(p))
-    if not info:
-        return 0
-    root, gitdir = info
+    lines, notes = [], []
+    for root, gitdir in bash_repos(p):
+        ln, nt = after_repo(root, gitdir, p)
+        lines += ln
+        notes += nt
+    if lines:
+        emit({"decision": "block", "reason": "\n".join(lines + ["art-pipeline: " + n for n in notes])})
+    elif notes:
+        emit({"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                     "additionalContext": "art-pipeline: " + " | ".join(notes)}})
+    return 0
+
+
+def after_repo(root, gitdir, p):
+    """`after` for one repo: (block lines, notes)."""
     cfg = artlib.load_config(root)
     path = artlib.ledger_path(gitdir, p.get("session_id"))
     led = artlib.load_ledger(path)
     use = p.get("tool_use_id")
     if use and use == led.get("after_use"):
-        return 0  # a second copy of the plugin already checked this call
+        return [], []  # a second copy of the plugin already checked this call
     led["after_use"] = use
     approvals = artlib.load_approvals(root, cfg, led)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    undone, charged = [], {}
+    undone = []
     d = os.path.join(root, cfg["approval_dir"])
     for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
         rel = "%s/%s" % (cfg["approval_dir"].strip("/"), f)
         if f.endswith(".json") and not artlib.human_granted(root, led, rel):
             undone.append((rel, quarantine(root, gitdir, led["start"], rel, stamp), "no human grant wrote it"))
     t0 = led.get("t0") or 0
+    outputs = {}
     for rel, h in artlib.changed_art(root, cfg).items():
         if led["known"].get(rel) == h or os.path.getmtime(os.path.join(root, rel)) < t0 - 1:
             continue  # unchanged since accepted, or changed outside this call (the person's own edit)
         good = [(rec, it) for rec, it, pr in artlib.covering(rel, approvals) if not pr]
         if good:
             led["known"][rel] = h
-            for rec, it in good:
-                charged[artlib.budget_key(rec, it)] = rec
+            if not artlib.is_source(rel, cfg):   # editing the code an asset is made from is not a build
+                for rec, it in good:
+                    outputs.setdefault(artlib.budget_key(rec, it), (rec, it, rel))
         else:
             undone.append((rel, quarantine(root, gitdir, led["start"], rel, stamp), "no approved item covers it"))
-    if charged and not led.get("counted"):
-        for k in charged:  # a tool missing from producer_commands still spends the budget
-            led["iter"][k] = led["iter"].get(k, 0) + 1
+    if outputs and not led.get("counted"):
+        for rec, it, rel in outputs.values():  # a tool missing from producer_commands still spends the budget
+            artlib.charge(led, rec, it, "a command that changed %s" % rel)
     led["counted"] = False
+    cmd = led.get("check_cmd") or ""
+    if cmd:
+        led["check_cmd"] = ""
+        res = p.get("tool_response")
+        out = "\n".join(str(res.get(k) or "") for k in ("stdout", "stderr")) if isinstance(res, dict) else \
+            (res if isinstance(res, str) else "")
+        verdict = artlib.check_verdict(artlib.check_entries(cmd, cfg), out)
+        named = list({artlib.check_key(it): it for _sid, rec, _pr in approvals if rec for it in rec["items"]
+                      if any(t.lower() in cmd.lower() for t in it["match"])}.values())
+        for it in named:
+            led["checks"][artlib.check_key(it)] = {"verdict": verdict, "fp": artlib.fingerprint(root, cfg, it),
+                                                   "t": artlib.now(), "cmd": cmd.strip()[:120],
+                                                   "words": artlib.check_words(cmd, cfg)}
+        if named:
+            led["notes"].append("check recorded for %s: %s%s" % (", ".join(i["name"] for i in named), verdict.upper(),
+                                "" if verdict != "unknown" else " (its output matched neither the pass nor the fail "
+                                "pattern, or was not captured: a check run in the background is not seen)"))
+    notes, led["notes"] = led.get("notes") or [], []
     artlib.save_ledger(path, led)
+    lines = []
     if undone:
         lines = ["art-pipeline: this command changed files that may not change yet, so they were put back "
                  "as they were at the start of the session. A copy of each is kept:"]
         lines += ["- %s (%s): copy at %s" % (rel, why, os.path.relpath(dst, root)) for rel, dst, why in undone]
         lines.append("To make art: " + artlib.approval_hint(cfg))
-        emit({"decision": "block", "reason": "\n".join(lines)})
-    return 0
+    return lines, notes
 
 
 def _answers(p):

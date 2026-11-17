@@ -1,6 +1,6 @@
 # art-pipeline
 
-STATUS: v0.3. A Claude Code plugin, split out of
+STATUS: v0.4. A Claude Code plugin, split out of
 [Ajw2003/AjsClaudeCodeTools](https://github.com/Ajw2003/AjsClaudeCodeTools) (same shape as its
 `house-rules` plugin: one `run.sh` shim, one stdlib Python file). Makes game art by code - models, animation, VFX, SFX, music, textures, sprites, UI art - and
 makes nothing until a human has approved a spec with real-world reference, then never calls a model
@@ -52,6 +52,32 @@ regular expressions (default: `blender`). The spec, reference, approval and revi
 never art. The Stop gate also blocks on any changed art file no usable approval covers, and on any
 approval file no human grant wrote; that block is never released by the loop guard.
 
+Builds and checks. A build is a run of a `producer_commands` tool naming an item, or any command
+that changes one of an item's output files. Changing an item's source files (`source_paths`,
+default code and data: `*.py`, `*.cs`, `*.js`, `*.ts`, `*.json`, `*.md`, ...) still needs the
+approval but is not a build. Every charge is reported after the command ("charged a build to X
+for ..., 3 of 5 used"), and a spent budget's refusal lists what each build was charged for.
+
+`checks` lists the project's verification commands, `{"command": regex, "pass": regex, "fail":
+regex}`: a check is never a build. After one runs, its verdict (fail if the fail pattern is in its
+output, pass if the pass pattern is, otherwise unknown) is kept for every item the command names,
+with a fingerprint of the item's source files. `gated_commands` (movies, exports) are refused
+unless every item they name has a passing check newer than its last source edit, and the Stop gate
+blocks while an item changed this session has none (the loop guard releases it on the third block,
+loudly). A gated command also needs the passing check to have named everything it names (a pass
+of `check.py musketeer aim` does not unlock `render.py movie musketeer reload`). A check is
+"pending" from the moment it starts: a failing one exits non-zero, Claude Code then runs no
+PostToolUse hook, and the item simply stays unpassed. A check run in the background is not
+captured and counts as unknown.
+
+Every Bash hook acts on each repo the command can reach: the working directory, its `cd`, `pushd`
+and `git -C` targets, and the repos of absolute paths it names. A Write or Edit is judged by the
+repo of the file. The Stop gate checks the working directory's repo and every repo the session
+acted in from outside (listed per session in `~/.claude/art-pipeline/`). Example:
+
+    "checks": [{"command": "attack_check\\.py", "pass": "^PASS\\b", "fail": "^FAIL\\b"}],
+    "gated_commands": ["attack\\.py\\s+(movie|export)"]
+
 What is still open: a command started in the background that writes art after it returns is not
 seen by `after`; the Stop gate catches the file. The approval channel relies on Claude Code
 filling `answers` from the human's click, which has not been observed in a live session yet; if
@@ -74,8 +100,8 @@ the sheet PNG exists, is at least as new as the model, and was opened this sessi
 
 Override per project with `.art-pipeline.json` at the repo root:
 `{"model_globs": [...], "exclude": [...], "review_dir": "...", "production_paths": [...],
-"production_exclude": [...], "producer_commands": [...], "spec_dir": "...", "reference_dir": "...",
-"approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
+"production_exclude": [...], "producer_commands": [...], "source_paths": [...], "checks": [...],
+"gated_commands": [...], "spec_dir": "...", "reference_dir": "...", "approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
 
 Doc-drift check: add `"doc_check": "<shell command>"` (run from the repo root, 60 s timeout) and
 optionally `"doc_check_paths": [...]` (fnmatch on repo-relative paths, default
