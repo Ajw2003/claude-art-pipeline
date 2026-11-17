@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-11-17
+
+- A build is charged once per tool call even when the plugin is installed twice (user and project
+  scope, as in cloud sessions that install it from a setup script), so the last build of a budget
+  is no longer refused by the second copy. `verify.py`: 63 checks.
+
 ## 0.3.0 - 2026-11-17
 
 - A spec can cover several items (four enemies of one Age, say), each with its own real-world

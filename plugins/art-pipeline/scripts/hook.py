@@ -203,7 +203,10 @@ def event_pre():
                 re.search(BASH_GUARDED, cmd) or cfg["approval_dir"].strip("/") in cmd):
             return deny("%s, .art-pipeline.json, the plugin settings and the session ledger are changed only by "
                         "a human grant or the human; read them with Read, commit them with git." % cfg["approval_dir"])
-        led["t0"], led["counted"] = time.time(), False
+        use = p.get("tool_use_id")
+        if use and use == led.get("pre_use"):
+            return 0  # a second copy of the plugin (user and project scope) already allowed this call
+        led["t0"], led["counted"], led["pre_use"] = time.time(), False, use
         if any(re.search(rx, cmd) for rx in cfg["producer_commands"]):
             ok, why = artlib.ready(root, artlib.named_in(cmd, artlib.load_approvals(root, cfg, led)), led)
             if not ok:
@@ -277,6 +280,10 @@ def event_after():
     cfg = artlib.load_config(root)
     path = artlib.ledger_path(gitdir, p.get("session_id"))
     led = artlib.load_ledger(path)
+    use = p.get("tool_use_id")
+    if use and use == led.get("after_use"):
+        return 0  # a second copy of the plugin already checked this call
+    led["after_use"] = use
     approvals = artlib.load_approvals(root, cfg, led)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     undone, charged = [], {}
