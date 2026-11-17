@@ -301,7 +301,8 @@ def bash_pre(root, gitdir, p, cmd):
         for _sid, rec, _pr in approvals:
             for it in (rec or {}).get("items", []):
                 if any(t.lower() in cmd.lower() for t in it["match"]):
-                    stale += artlib.check_state(root, cfg, led, it, gated_cmd=cmd)[1]
+                    ok, why = artlib.check_state(root, cfg, led, it, gated_cmd=cmd)
+                    stale += why if not ok else artlib.clip_review_state(root, cfg, led, it, cmd)[1]
         stale = list(dict.fromkeys(stale))   # two approvals of one item give one reason
         if stale:
             artlib.save_ledger(path, led)

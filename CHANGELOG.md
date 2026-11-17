@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 - 2026-11-17
+
+- **Clip reviews.** New `clip_review_views` and `review.py clip`: when set, a movie or export of a
+  clip also needs a passing review that names the clip, lists the required views (a top view shows
+  a prop inside the body; a side view cannot), and points at a sheet opened this session and newer
+  than the item's last source edit. The checks of 0.4.0 measure; this makes someone look.
+- `verify.py`: 83 checks.
+
 ## 0.4.0 - 2026-11-17
 
 From a live run in PlunderSpell, where a Musketeer reload clip reached the owner's review with the

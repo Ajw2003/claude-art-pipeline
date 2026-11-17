@@ -606,6 +606,44 @@ try:
                                  "tool_input": {"file_path": os.path.join(FAKE_HOME, ".claude/art-pipeline/s1.repos.json")}})
     report("deny" in out, "pre: the session's repo list cannot be edited")
 
+    # clip reviews: with clip_review_views set, a movie also needs a passing review that shows them
+    d = mkrepo(art=False, prod=True)
+    write(d, ".art-pipeline.json", json.dumps({
+        "checks": [{"command": r"clip_check\.py", "pass": r"^PASS\b", "fail": r"^FAIL\b"}],
+        "gated_commands": [r"render\.py\s+movie"], "clip_review_views": ["top"]}))
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "cfg")
+    hook("start", d)
+    spec(d, items=[item("Musketeer", ["Tools/anim/*", "Assets/Anim/musk*"], ["musketeer"])], iterations=3)
+    check(d); ask(d); look(d)
+    write(d, "Tools/anim/clip.py", "pose = 1")
+    checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
+    movie = {"command": "python render.py movie musketeer reload"}
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "no clip review" in why and "--views top" in why,
+           "clip review: a checked clip still needs a review showing the top view before a movie")
+    time.sleep(0.02)
+    sheet = write(d, "docs/art/sheets/reload.png", "png")
+
+    def clip_rec(*extra, views=("top", "side"), clips=("reload",)):
+        return run([sys.executable, REVIEW, "clip", "--item", "Musketeer", "--clips"] + list(clips) + ["--views"]
+                   + list(views) + ["--sheet", "docs/art/sheets/reload.png", "--verdict", "pass", "--seen", SEEN_TXT]
+                   + list(extra), cwd=d)
+    rc, _, err = clip_rec(views=("side", "front"))
+    report(rc == 1 and "top view" in err, "review.py clip refuses a review without the views the project requires")
+    clip_rec()
+    dec, why = pre(d, "Bash", movie)
+    see(d, sheet)
+    dec2, _ = pre(d, "Bash", movie)
+    dec3, why3 = pre(d, "Bash", {"command": "python render.py movie musketeer aim"})
+    report(dec == "deny" and "was not opened" in why and dec2 is None and dec3 == "deny",
+           "clip review: its sheet must be opened this session, and it covers only the clips it names")
+    time.sleep(0.02)
+    write(d, "Tools/anim/clip.py", "pose = 2")
+    checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "older than Musketeer's last source edit" in why,
+           "clip review: an edit after the review needs a new render and review, even with a fresh check")
+
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")
 

@@ -86,6 +86,9 @@ Full detail per stage, with commands: `references/stages.md`.
    a passing check newer than its last edit, and the stop is blocked while a changed item has none.
    A render from the side cannot show a prop inside the body; the check can. When you report to the
    human, quote the check's verdict, and never describe a render you have not checked as matching.
+   Where the project sets `clip_review_views`, a movie or export also needs a clip review: render
+   stills of every key pose from those views (always including top), put them beside the
+   reference, open the sheet with Read, and record what you saw with `review.py clip`.
 4. **Decisions that are the user's go to the user**, with a proposal page or a question: the look,
    anything that contradicts an approved plan (for example a death animation when the plan says the
    body vanishes). Defaults that are just craft, you choose and say so.
