@@ -74,11 +74,18 @@ Full detail per stage, with commands: `references/stages.md`.
    If the reference cannot be fetched (a blocked host), stop and ask the human for it; never
    substitute your own drawing or reasoning.
 3. **Respect the build budget.** Each approved item allows `iterations` build or render runs
-   (default 5), counted whatever tool makes its files. When they are spent the hook refuses more,
+   (default 5), counted whatever tool makes its output files. Editing the code or data an asset is
+   made from (`source_paths`) is not a build, and neither is a check; the hook says what each build
+   was charged for. When they are spent the hook refuses more,
    and art any command makes outside an approval is put back straight away (a copy is kept in
    `.git/art-pipeline/quarantine/`). Do not look for another route: show the human
    the last render beside its reference and ask whether to accept it, add reference, or re-approve.
    A fix that needs more than the budget is a sign that the reference or the spec is wrong.
+   **Run the project's check before every render you judge and before any movie or export.** Where
+   the project lists `checks`, movies and exports (`gated_commands`) are refused until the item has
+   a passing check newer than its last edit, and the stop is blocked while a changed item has none.
+   A render from the side cannot show a prop inside the body; the check can. When you report to the
+   human, quote the check's verdict, and never describe a render you have not checked as matching.
 4. **Decisions that are the user's go to the user**, with a proposal page or a question: the look,
    anything that contradicts an approved plan (for example a death animation when the plan says the
    body vanishes). Defaults that are just craft, you choose and say so.

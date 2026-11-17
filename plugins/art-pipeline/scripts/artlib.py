@@ -31,6 +31,9 @@ DEFAULT_PRODUCTION = DEFAULT_GLOBS + [
 DEFAULT_PRODUCERS = [r"(^|[\s/;&|(])blender(\.exe)?(\s|$)"]
 KINDS = ("animation", "model", "rig", "vfx", "sfx", "music", "texture", "sprite", "ui", "other")
 AUDIO_KINDS = ("sfx", "music")
+# Art-gated files that are the code or data an asset is made FROM, not the asset: writing them
+# still needs an approval, but changing them is not a build and spends no budget.
+DEFAULT_SOURCES = ["*.py", "*.cs", "*.js", "*.ts", "*.json", "*.md", "*.txt", "*.sh", "*.yaml", "*.yml", "*.toml"]
 DEFAULT_ITERATIONS = 5
 MAX_ITERATIONS = 20
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,7 +68,8 @@ def load_config(root):
     cfg = {"model_globs": DEFAULT_GLOBS, "exclude": DEFAULT_EXCLUDE, "review_dir": DEFAULT_REVIEW_DIR,
            "doc_check": "", "doc_check_paths": DOC_PATHS,
            "production_paths": DEFAULT_PRODUCTION, "production_exclude": ["*.meta", "docs/*"],
-           "producer_commands": DEFAULT_PRODUCERS, "spec_dir": "docs/art/specs",
+           "producer_commands": DEFAULT_PRODUCERS, "source_paths": DEFAULT_SOURCES,
+           "checks": [], "gated_commands": [], "spec_dir": "docs/art/specs",
            "reference_dir": "docs/art/reference", "approval_dir": "docs/art/approvals"}
     path = os.path.join(root, ".art-pipeline.json")
     if os.path.exists(path):
@@ -184,7 +188,8 @@ def new_ledger(start, known=None):
     """known: art file -> sha already accepted (dirty at session start, or built under an approval);
     t0: when the running Bash call started; counted: whether pre already charged it to a budget."""
     return {"start": start, "seen": [], "blocks": {}, "granted": [], "iter": {},
-            "known": known or {}, "t0": 0, "counted": False}
+            "known": known or {}, "t0": 0, "counted": False, "charges": {}, "notes": [],
+            "checks": {}, "check_cmd": ""}
 
 
 def changed_art(root, cfg):
@@ -286,6 +291,13 @@ def evaluate(root, gitdir, session_id):
                 why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
                 res.append((n, "fail", why))
+    if cfg.get("checks"):
+        for sid, rec, pr in approvals:
+            for it in (rec or {}).get("items", []):
+                if any(matches(n, it["paths"]) for n in names):
+                    ok, why = check_state(root, cfg, led, it)
+                    if not ok:
+                        res.append(("%s (unchecked)" % it["name"], "fail", why))
     dc = run_doc_check(root, cfg, names)
     if dc:
         res.append(("doc_check", dc[0], dc[1]))
@@ -541,10 +553,81 @@ def usable(root, rec, item, led):
     if item["images"] and not any(norm(os.path.join(root, f)) in seen for f in item["images"]):
         probs.append("open a reference image of %s with Read before building it (%s)" % (item["name"], item["images"][0]))
     if led["iter"].get(budget_key(rec, item), 0) >= rec["iterations"]:
-        probs.append("%s has used all %d builds the human approved. Stop refining: show the human the "
+        spent = led.get("charges", {}).get(budget_key(rec, item)) or []
+        probs.append("%s has used all %d builds the human approved%s. Stop refining: show the human the "
                      "last render beside its reference and ask them to accept it, add reference, or "
-                     "re-approve for more builds" % (item["name"], rec["iterations"]))
+                     "re-approve for more builds" % (item["name"], rec["iterations"],
+                                                     " (charged for: %s)" % "; ".join(spent) if spent else ""))
     return probs
+
+
+def charge(led, rec, item, why):
+    """Spends one build of an item's budget and says so: the ledger keeps what each build was charged
+    for, and a note for the next hook output, so a spent budget is never a mystery."""
+    k = budget_key(rec, item)
+    led["iter"][k] = led["iter"].get(k, 0) + 1
+    led.setdefault("charges", {}).setdefault(k, []).append(why[:100])
+    led["charges"][k] = led["charges"][k][-30:]
+    led.setdefault("notes", []).append("charged a build to %s for %s (%d of %d used)" % (
+        item["name"], why[:100], led["iter"][k], rec["iterations"]))
+
+
+# --- checks: a clip or model is verified by a tool before it is shown or exported ------------
+# `checks` lists the project's verification commands: {"command": regex, "pass": regex, "fail": regex}
+# matched against the command and its output. A check is never a build. Its verdict is kept per item
+# with a fingerprint of the item's source files, so any later edit makes it stale. `gated_commands`
+# (movies, exports) are refused unless every item they name has a fresh passing check, and the Stop
+# gate blocks while an item changed this session has none.
+
+def is_source(rel, cfg):
+    return matches(rel, cfg.get("source_paths") or [])
+
+
+def item_sources(root, cfg, item):
+    out = git(root, "ls-files", "--cached", "--others", "--exclude-standard")
+    return sorted(f for f in set(out.splitlines()) if matches(f, item["paths"]) and is_source(f, cfg)
+                  and os.path.isfile(os.path.join(root, f)))
+
+
+def fingerprint(root, cfg, item):
+    """Changes whenever any source file of the item is edited, added or removed."""
+    h = hashlib.sha256()
+    for rel in item_sources(root, cfg, item):
+        st = os.stat(os.path.join(root, rel))
+        h.update(("%s\0%d\0%d\n" % (rel, st.st_size, st.st_mtime_ns)).encode("utf-8"))
+    return h.hexdigest()[:16]
+
+
+def check_key(item):
+    return "check:" + slugify(item["name"])
+
+
+def check_entries(cmd, cfg):
+    return [e for e in cfg.get("checks") or [] if isinstance(e, dict) and isinstance(e.get("command"), str)
+            and re.search(e["command"], cmd)]
+
+
+def check_verdict(entries, output):
+    """'fail' if any entry's fail pattern is in the output, 'pass' if a pass pattern is, else 'unknown'."""
+    if any(e.get("fail") and re.search(e["fail"], output, re.M) for e in entries):
+        return "fail"
+    if any(e.get("pass") and re.search(e["pass"], output, re.M) for e in entries):
+        return "pass"
+    return "unknown"
+
+
+def check_state(root, cfg, led, item):
+    """(True, []) when the item has a passing check newer than its last source edit."""
+    pats = " or ".join("`%s`" % e.get("command") for e in cfg.get("checks") or [] if isinstance(e, dict))
+    rec = (led.get("checks") or {}).get(check_key(item))
+    if not rec:
+        return False, ["%s has no check this session: run a command matching %s that names it" % (item["name"], pats)]
+    if rec.get("verdict") != "pass":
+        return False, ["%s's last check did not pass (%s: `%s`); fix it and run the check again" % (
+            item["name"], rec.get("verdict"), rec.get("cmd", ""))]
+    if rec.get("fp") != fingerprint(root, cfg, item):
+        return False, ["%s's source files changed after its last passing check; run the check again" % item["name"]]
+    return True, []
 
 
 def covering(rel, approvals):

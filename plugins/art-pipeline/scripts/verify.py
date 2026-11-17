@@ -422,8 +422,10 @@ try:
 
     dec, why, o = bash(d, "python3 -c \"open('Assets/Anim/pike-new.anim','w').write('x')\"")
     k = [v for kk, v in json.load(open(os.path.join(d, ".git/art-pipeline/s1.json")))["iter"].items() if kk.endswith(":pikeman")]
-    report(dec is None and o == {} and os.path.exists(os.path.join(d, "Assets/Anim/pike-new.anim")) and sum(k) == 2,
-           "after: a covered file made by an unlisted tool stays, and still spends that item's budget")
+    note = (o.get("hookSpecificOutput") or {}).get("additionalContext", "")
+    report(dec is None and "decision" not in o and os.path.exists(os.path.join(d, "Assets/Anim/pike-new.anim"))
+           and sum(k) == 2 and "charged a build to Pikeman" in note and "pike-new.anim" in note,
+           "after: a covered file made by an unlisted tool stays, spends that item's budget, and says so")
     dec, why, o = bash(d, "mkdir -p Assets/Audio && echo boom > Assets/Audio/boom.wav")
     q_copy = glob.glob(os.path.join(d, ".git/art-pipeline/quarantine/*/Assets/Audio/boom.wav"))
     report(dec is None and o.get("decision") == "block" and "Assets/Audio/boom.wav" in o.get("reason", "")
@@ -504,6 +506,62 @@ try:
     used = [v for k, v in json.load(open(os.path.join(d, ".git/art-pipeline/s1.json")))["iter"].items() if k.endswith(":musketeer")]
     report(twice == [None] * 4 and used == [2],
            "hooks running twice for one call charge one build, and the last build of a budget is not refused")
+
+    # checks: a check is never a build; movies and exports need a fresh passing one; so does the stop
+    def used_builds(d, name="musketeer"):
+        led = json.load(open(os.path.join(d, ".git", "art-pipeline", "s1.json")))
+        return sum(v for k, v in led["iter"].items() if k.endswith(":" + name))
+
+    d = mkrepo(art=False, prod=True)
+    write(d, ".art-pipeline.json", json.dumps({
+        "checks": [{"command": r"clip_check\.py", "pass": r"^PASS\b", "fail": r"^FAIL\b"}],
+        "gated_commands": [r"render\.py\s+movie"]}))
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "cfg")
+    hook("start", d)
+    spec(d, items=[item("Musketeer", ["Tools/anim/*", "Assets/Anim/musk*"], ["musketeer"])], iterations=3)
+    check(d); ask(d); look(d)
+    dec, why, o = bash(d, "mkdir -p Tools/anim && echo 'pose = 1' > Tools/anim/clip.py")
+    report(dec is None and o == {} and used_builds(d) == 0 and os.path.exists(os.path.join(d, "Tools/anim/clip.py")),
+           "after: a Bash edit of an approved item's source code is allowed and is not a build")
+    dec, why, o = bash(d, "mkdir -p Assets/Anim && echo x > Assets/Anim/musk.anim")
+    report(used_builds(d) == 1 and "charged a build to Musketeer" in (o.get("hookSpecificOutput") or {}).get("additionalContext", ""),
+           "after: a command that changes an item's output is charged, and the charge is reported")
+    movie = {"command": "python render.py movie musketeer"}
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "no check this session" in why and "clip_check" in why,
+           "pre: a movie of an item no check has passed is refused, and names the check to run")
+
+    def checked(cmd, output):
+        pre(d, "Bash", {"command": cmd})
+        rc, out, _ = hook("after", d, {"tool_name": "Bash", "tool_input": {"command": cmd},
+                                       "tool_response": {"stdout": output, "stderr": ""}})
+        return (json.loads(out) if out.strip() else {}).get("hookSpecificOutput", {}).get("additionalContext", "")
+
+    note = checked("python clip_check.py musketeer reload", "FAIL  musketeer reload  crossing 41\n")
+    dec, why = pre(d, "Bash", movie)
+    report(dec == "deny" and "did not pass" in why and "FAIL" in note,
+           "a failing check is recorded and reported, and the movie stays refused")
+    checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
+    dec, _ = pre(d, "Bash", movie)
+    report(dec is None and used_builds(d) == 1, "a passing check unlocks the movie, and the checks spent no builds")
+    time.sleep(0.02)
+    write(d, "Tools/anim/clip.py", "pose = 2")
+    dec, why = pre(d, "Bash", movie)
+    rc, g = gate(d)
+    report(dec == "deny" and "changed after its last passing check" in why and g.get("decision") == "block"
+           and "Musketeer (unchecked)" in g.get("reason", ""),
+           "editing the source after a pass makes it stale: the movie is refused and the stop is blocked")
+    checked("python clip_check.py musketeer reload", "PASS  musketeer reload\n")
+    rc, g = gate(d)
+    report("Musketeer (unchecked)" not in g.get("reason", ""), "gate: a fresh passing check releases the stop")
+    note = checked("python clip_check.py musketeer reload &", "")
+    report("UNKNOWN" in note and pre(d, "Bash", movie)[0] == "deny",
+           "a check whose output was not captured counts as unknown, not as a pass")
+    for i in range(2):
+        bash(d, "echo %d > Assets/Anim/musk%d.anim" % (i, i))
+    dec, why = pre(d, "Write", {"file_path": os.path.join(d, "Assets/Anim/musk9.anim")})
+    report(dec == "deny" and "charged for:" in why and "Assets/Anim/musk1.anim" in why,
+           "a spent budget's refusal lists what each build was charged for")
 
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")

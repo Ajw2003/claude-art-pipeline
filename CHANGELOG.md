@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 - 2026-11-17
+
+From a live run in PlunderSpell, where a Musketeer reload clip reached the owner's review with the
+gun inside the body: the gate checked permission but never the result, and the budget charged
+the wrong things without saying so.
+
+- **Checks gate movies, exports and the stop.** New `checks` (verification commands with pass and
+  fail patterns) and `gated_commands`. A check is never a build; its verdict is kept per item with
+  a fingerprint of the item's source files. A gated command is refused unless every item it names
+  has a passing check newer than its last edit; the Stop gate blocks while a changed item has none.
+- **Editing source is not a build.** New `source_paths` (default code and data files): a Bash edit
+  of an approved item's source no longer spends its budget. In that run every `sed` of the clip's
+  code was charged, so most of the aim's 13 "builds" were edits, while the same edit made with the
+  Edit tool cost nothing.
+- **Every charge is reported**, after the command and in the refusal when a budget is spent, so
+  the agent never has to guess what was counted. (It guessed "checks count" and then skipped them.)
+- `verify.py`: 72 checks.
+
 ## 0.3.1 - 2026-11-17
 
 - A build is charged once per tool call even when the plugin is installed twice (user and project

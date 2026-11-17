@@ -207,16 +207,32 @@ def event_pre():
         if use and use == led.get("pre_use"):
             return 0  # a second copy of the plugin (user and project scope) already allowed this call
         led["t0"], led["counted"], led["pre_use"] = time.time(), False, use
+        led["check_cmd"] = ""
+        approvals = None
+        if any(re.search(rx, cmd) for rx in cfg.get("gated_commands") or []):
+            approvals = artlib.load_approvals(root, cfg, led)
+            stale = []
+            for _sid, rec, _pr in approvals:
+                for it in (rec or {}).get("items", []):
+                    if any(t.lower() in cmd.lower() for t in it["match"]):
+                        stale += artlib.check_state(root, cfg, led, it)[1]
+            if stale:
+                artlib.save_ledger(path, led)
+                return deny("this command shows or exports art that has not passed its check: %s. A movie or "
+                            "an export is made only from work a check has passed since its last edit."
+                            % "; ".join(stale))
         if any(re.search(rx, cmd) for rx in cfg["producer_commands"]):
-            ok, why = artlib.ready(root, artlib.named_in(cmd, artlib.load_approvals(root, cfg, led)), led)
+            approvals = approvals or artlib.load_approvals(root, cfg, led)
+            ok, why = artlib.ready(root, artlib.named_in(cmd, approvals), led)
             if not ok:
                 return deny("this command builds art and cannot run yet: %s. %s" % (
                     "; ".join(why) if why else "it names no approved item (a word from an item's \"match\")",
                     "" if why else "To make art: " + artlib.approval_hint(cfg)))
             for rec, it in ok:
-                k = artlib.budget_key(rec, it)
-                led["iter"][k] = led["iter"].get(k, 0) + 1
+                artlib.charge(led, rec, it, "running `%s`" % cmd.strip()[:70])
             led["counted"] = True
+        elif artlib.check_entries(cmd, cfg):
+            led["check_cmd"] = cmd   # a check is never a build; `after` records its verdict
         artlib.save_ledger(path, led)
         return 0
     fp = ti.get("file_path") or ti.get("notebook_path")
@@ -286,34 +302,57 @@ def event_after():
     led["after_use"] = use
     approvals = artlib.load_approvals(root, cfg, led)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    undone, charged = [], {}
+    undone = []
     d = os.path.join(root, cfg["approval_dir"])
     for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
         rel = "%s/%s" % (cfg["approval_dir"].strip("/"), f)
         if f.endswith(".json") and not artlib.human_granted(root, led, rel):
             undone.append((rel, quarantine(root, gitdir, led["start"], rel, stamp), "no human grant wrote it"))
     t0 = led.get("t0") or 0
+    outputs = {}
     for rel, h in artlib.changed_art(root, cfg).items():
         if led["known"].get(rel) == h or os.path.getmtime(os.path.join(root, rel)) < t0 - 1:
             continue  # unchanged since accepted, or changed outside this call (the person's own edit)
         good = [(rec, it) for rec, it, pr in artlib.covering(rel, approvals) if not pr]
         if good:
             led["known"][rel] = h
-            for rec, it in good:
-                charged[artlib.budget_key(rec, it)] = rec
+            if not artlib.is_source(rel, cfg):   # editing the code an asset is made from is not a build
+                for rec, it in good:
+                    outputs.setdefault(artlib.budget_key(rec, it), (rec, it, rel))
         else:
             undone.append((rel, quarantine(root, gitdir, led["start"], rel, stamp), "no approved item covers it"))
-    if charged and not led.get("counted"):
-        for k in charged:  # a tool missing from producer_commands still spends the budget
-            led["iter"][k] = led["iter"].get(k, 0) + 1
+    if outputs and not led.get("counted"):
+        for rec, it, rel in outputs.values():  # a tool missing from producer_commands still spends the budget
+            artlib.charge(led, rec, it, "a command that changed %s" % rel)
     led["counted"] = False
+    cmd = led.get("check_cmd") or ""
+    if cmd:
+        led["check_cmd"] = ""
+        res = p.get("tool_response")
+        out = "\n".join(str(res.get(k) or "") for k in ("stdout", "stderr")) if isinstance(res, dict) else \
+            (res if isinstance(res, str) else "")
+        verdict = artlib.check_verdict(artlib.check_entries(cmd, cfg), out)
+        named = [it for _sid, rec, _pr in approvals if rec for it in rec["items"]
+                 if any(t.lower() in cmd.lower() for t in it["match"])]
+        for it in named:
+            led["checks"][artlib.check_key(it)] = {"verdict": verdict, "fp": artlib.fingerprint(root, cfg, it),
+                                                   "t": artlib.now(), "cmd": cmd.strip()[:120]}
+        if named:
+            led["notes"].append("check recorded for %s: %s%s" % (", ".join(i["name"] for i in named), verdict.upper(),
+                                "" if verdict != "unknown" else " (its output matched neither the pass nor the fail "
+                                "pattern, or was not captured: a check run in the background is not seen)"))
+    notes, led["notes"] = led.get("notes") or [], []
     artlib.save_ledger(path, led)
     if undone:
         lines = ["art-pipeline: this command changed files that may not change yet, so they were put back "
                  "as they were at the start of the session. A copy of each is kept:"]
         lines += ["- %s (%s): copy at %s" % (rel, why, os.path.relpath(dst, root)) for rel, dst, why in undone]
         lines.append("To make art: " + artlib.approval_hint(cfg))
+        lines += ["art-pipeline: " + n for n in notes]
         emit({"decision": "block", "reason": "\n".join(lines)})
+    elif notes:
+        emit({"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                     "additionalContext": "art-pipeline: " + " | ".join(notes)}})
     return 0
 
 
