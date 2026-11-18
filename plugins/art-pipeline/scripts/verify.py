@@ -686,6 +686,67 @@ try:
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")
 
+    # frame sheets: a changed clip file, controller or clip import setting needs a Unity and a Blender sheet, opened,
+    # and a rest-pose comparison of the clip file against the model with no unexplained mismatch
+    d = mkrepo(art=False)
+    write(d, "Assets/Anim/hero.controller.meta", "guid 1")
+    sh_git(d, "add", "-A"); sh_git(d, "commit", "-qm", "meta")
+    hook("start", d)
+    t0 = time.time()
+    write(d, "Assets/Anim/hero.controller", "ctrl", mtime=t0 - 100)
+    write(d, "Assets/Anim/hero.controller.meta", "guid 1, loop on", mtime=t0 - 100)
+    _, o = gate(d)
+    r = o.get("reason", "")
+    report(o.get("decision") == "block" and "hero.controller (frame sheets)" in r
+           and "hero.controller.meta (frame sheets)" in r and "unity_frame_sheets.sh" in r,
+           "frame sheets: a changed controller and its import settings block until sheets are rendered")
+    us = write(d, "docs/art/sheets/hero.png", "png", mtime=t0 - 50)
+    bs = write(d, "docs/art/sheets/hero_blender.png", "png", mtime=t0 - 50)
+    write(d, "docs/art/sheets/hero_rest.json", json.dumps({"mismatch": [{"bone": "Hand.R", "deg": 84.9}]}))
+
+    def frames(*extra, covers=("Assets/Anim/hero.controller",)):
+        return run([sys.executable, REVIEW, "frames", "--covers"] + list(covers) + [
+            "--unity-sheet", "docs/art/sheets/hero.png", "--blender-sheet", "docs/art/sheets/hero_blender.png",
+            "--rest-pose", "docs/art/sheets/hero_rest.json", "--verdict", "pass", "--seen", SEEN_TXT] + list(extra), cwd=d)
+    rc, _, err = frames()
+    report(rc == 1 and "another rest pose" in err and "Hand.R 85 deg" in err,
+           "review.py frames refuses a clip file exported on another rest pose than the model")
+    rc, _, _ = frames("--rest-ok", "the hand bones differ but nothing is parented to them and Humanoid retargets them")
+    see(d, us)
+    _, o = gate(d)
+    r = o.get("reason", "")
+    report(rc == 0 and o.get("decision") == "block" and "blender sheet docs/art/sheets/hero_blender.png was not opened" in r
+           and "hero.controller.meta (frame sheets)" in r,
+           "frame sheets: the Blender sheet must be opened too, and a record covers only the files it names")
+    see(d, bs)
+    frames("--rest-ok", "x" * 45, covers=("Assets/Anim/hero.controller", "Assets/Anim/hero.controller.meta"))
+    _, o = gate(d)
+    report("frame sheets" not in o.get("reason", ""), "frame sheets: both sheets opened and the rest pose explained pass")
+    write(d, "Assets/Anim/hero.controller", "ctrl 2", mtime=t0 + 10)
+    _, o = gate(d)
+    report(o.get("decision") == "block" and "older than Assets/Anim/hero.controller" in o.get("reason", ""),
+           "frame sheets: an edit after the sheets needs them rendered again")
+    write(d, "docs/art/sheets/hero_rest.json", json.dumps({"mismatch": [{"bone": "Greatsword", "deg": 65}]}))
+    for rp in glob.glob(os.path.join(d, "docs/art/reviews/*.frames.json")):
+        with open(rp) as fh:
+            data = json.load(fh)
+        data["rest_ok"] = ""
+        with open(rp, "w") as fh:
+            json.dump(data, fh)
+    for p in (us, bs):
+        os.utime(p, (t0 + 20, t0 + 20))
+    _, o = gate(d)
+    report(o.get("decision") == "block" and "Greatsword 65 deg" in o.get("reason", ""),
+           "frame sheets: a rest-pose mismatch blocks the stop unless the record explains it")
+    d2 = mkrepo(art=False)
+    with open(os.path.join(d2, ".art-pipeline.json"), "w", encoding="utf-8-sig") as fh:
+        fh.write(json.dumps({"production_paths": [], "anim_globs": []}))
+    hook("start", d2, session="bom")  # its own session: s1's other repos are checked at s1's stop too
+    write(d2, "Assets/Anim/x.controller", "c")
+    rc, out, err = hook("gate", d2, session="bom")
+    report(rc == 0 and out.strip() == "" and not err.strip(),
+           "a config saved with a byte-order mark loads, and anim_globs: [] turns frame sheets off")
+
     # 18-20 run.sh
     env_np = {"PATH": "", "ART_PIPELINE_PYTHON": ""}
     for ev, want in (("start", "NOT armed"), ("gate", "did NOT run")):

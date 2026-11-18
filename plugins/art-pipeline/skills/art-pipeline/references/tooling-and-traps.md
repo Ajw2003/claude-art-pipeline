@@ -77,5 +77,14 @@ trim stays on the same shell.
   vertices (`BakeMesh(useScale: true)` through `localToWorldMatrix`) when deciding heights or feet.
 - **Metals render too warm** in a warm review studio; judge silver and steel from the baked colour.
 - **Validation passing proves nothing about the look.** Every one of these traps passed validation.
+- **A clip file exported on another rest pose imports without a word.** The bone names match, so
+  the engine accepts it, and every prop on a bone whose rest differs is turned by the difference
+  (the Crusader's greatsword: 65 degrees). `blender_frame_sheets.py` compares the rest poses.
+- **Shared clips made empty-handed swing every held prop.** A weapon parented to a hand bone goes
+  wherever the hand goes; idle, walk and run need an arms layer that holds the carry pose.
+- **Edit-mode clip sampling in Unity:** `AnimationMode.SampleAnimationClip`, not
+  `clip.SampleAnimation` or a PlayableGraph (both leave a preview-scene pose frozen), and
+  `forceMatrixRecalculationPerRender` on every skinned mesh, or each render in one call shows the
+  first pose.
 - **Docs drift when the roster changes.** A scale doc kept a retired enemy roster for weeks; a
   drift check in CI is the fix (stage 8).

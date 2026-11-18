@@ -1,0 +1,9 @@
+{"name": "CrusaderBoss", "engine": "unity", "asset": "Assets/_Project/Prefabs/Enemies/HighMedieval/CrusaderBoss.prefab", "clips_from": "Assets/Models/ArtBible/Animations/CrusaderBoss.controller", "cell": [240, 320], "steps": 5, "views": ["three-quarter", "side"], "axes": "x right, y up, z forward", "probe_bones": {"gap": "Hand.L Hand.R", "dir": "Greatsword"}, "rows": [
+  {"label": "rest pose", "length": 0.000, "loop": false, "probe": {"gap": 0.243, "dir": [0.000, -0.809, 0.588]}},
+  {"label": "greatsword_idle", "length": 2.400, "loop": true, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "walk_slow", "length": 1.100, "loop": true, "probe": {"gap": 1.008, "dir": [0.828, -0.560, 0.043]}},
+  {"label": "walk", "length": 0.867, "loop": true, "probe": {"gap": 1.124, "dir": [0.809, -0.537, 0.241]}},
+  {"label": "run_pursuit", "length": 0.667, "loop": true, "probe": {"gap": 0.944, "dir": [0.793, 0.143, 0.592]}},
+  {"label": "greatsword_chop", "length": 2.600, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "greatsword_sweep", "length": 2.600, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "greatsword_thrust", "length": 2.300, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}}]}

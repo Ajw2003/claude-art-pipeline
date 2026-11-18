@@ -1,0 +1,191 @@
+{
+ "model": "C:/Users/Ayden's mini/Desktop/GameDev/PlunderSpell/.claude/worktrees/anim-frame-sheets-c8c953/Assets/Models/ArtBible/Enemies/High/CrusaderBoss/CrusaderBoss.fbx",
+ "clips": "C:/Users/Ayden's mini/Desktop/GameDev/PlunderSpell/.claude/worktrees/anim-frame-sheets-c8c953/Assets/Models/ArtBible/Animations/Crusader_Signature.fbx",
+ "max_deg": 5.0,
+ "bones": [
+  {
+   "bone": "Root",
+   "deg": 0.0
+  },
+  {
+   "bone": "Hips",
+   "deg": 14.81
+  },
+  {
+   "bone": "Spine",
+   "deg": 7.23
+  },
+  {
+   "bone": "Chest",
+   "deg": 8.74
+  },
+  {
+   "bone": "Neck",
+   "deg": 7.41
+  },
+  {
+   "bone": "Head",
+   "deg": 9.89
+  },
+  {
+   "bone": "Helm",
+   "deg": 0.0
+  },
+  {
+   "bone": "EyeFlame.L",
+   "deg": 4.63
+  },
+  {
+   "bone": "EyeFlame.R",
+   "deg": 3.55
+  },
+  {
+   "bone": "Shoulder.L",
+   "deg": 0.0
+  },
+  {
+   "bone": "UpperArm.L",
+   "deg": 38.5
+  },
+  {
+   "bone": "LowerArm.L",
+   "deg": 19.97
+  },
+  {
+   "bone": "Hand.L",
+   "deg": 78.68
+  },
+  {
+   "bone": "Shoulder.R",
+   "deg": 0.0
+  },
+  {
+   "bone": "UpperArm.R",
+   "deg": 16.69
+  },
+  {
+   "bone": "LowerArm.R",
+   "deg": 5.54
+  },
+  {
+   "bone": "Hand.R",
+   "deg": 84.93
+  },
+  {
+   "bone": "Greatsword",
+   "deg": 0.0
+  },
+  {
+   "bone": "Cloak",
+   "deg": 10.79
+  },
+  {
+   "bone": "Cloak2",
+   "deg": 8.36
+  },
+  {
+   "bone": "UpperLeg.L",
+   "deg": 11.17
+  },
+  {
+   "bone": "LowerLeg.L",
+   "deg": 28.32
+  },
+  {
+   "bone": "Foot.L",
+   "deg": 58.16
+  },
+  {
+   "bone": "UpperLeg.R",
+   "deg": 22.72
+  },
+  {
+   "bone": "LowerLeg.R",
+   "deg": 21.87
+  },
+  {
+   "bone": "Foot.R",
+   "deg": 6.05
+  }
+ ],
+ "mismatch": [
+  {
+   "bone": "Hips",
+   "deg": 14.81
+  },
+  {
+   "bone": "Spine",
+   "deg": 7.23
+  },
+  {
+   "bone": "Chest",
+   "deg": 8.74
+  },
+  {
+   "bone": "Neck",
+   "deg": 7.41
+  },
+  {
+   "bone": "Head",
+   "deg": 9.89
+  },
+  {
+   "bone": "UpperArm.L",
+   "deg": 38.5
+  },
+  {
+   "bone": "LowerArm.L",
+   "deg": 19.97
+  },
+  {
+   "bone": "Hand.L",
+   "deg": 78.68
+  },
+  {
+   "bone": "UpperArm.R",
+   "deg": 16.69
+  },
+  {
+   "bone": "LowerArm.R",
+   "deg": 5.54
+  },
+  {
+   "bone": "Hand.R",
+   "deg": 84.93
+  },
+  {
+   "bone": "Cloak",
+   "deg": 10.79
+  },
+  {
+   "bone": "Cloak2",
+   "deg": 8.36
+  },
+  {
+   "bone": "UpperLeg.L",
+   "deg": 11.17
+  },
+  {
+   "bone": "LowerLeg.L",
+   "deg": 28.32
+  },
+  {
+   "bone": "Foot.L",
+   "deg": 58.16
+  },
+  {
+   "bone": "UpperLeg.R",
+   "deg": 22.72
+  },
+  {
+   "bone": "LowerLeg.R",
+   "deg": 21.87
+  },
+  {
+   "bone": "Foot.R",
+   "deg": 6.05
+  }
+ ],
+ "only_in_model": [],
+ "only_in_clips": []
+}
