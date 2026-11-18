@@ -1,0 +1,8 @@
+{"name": "Crusader_Signature", "engine": "unity", "asset": "Assets/Models/ArtBible/Animations/Crusader_Signature.fbx", "clips_from": "Assets/Models/ArtBible/Animations/Crusader_Signature.fbx", "cell": [240, 320], "steps": 5, "views": ["three-quarter", "side"], "axes": "x right, y up, z forward", "probe_bones": {"gap": "Hand.L Hand.R", "dir": "Greatsword"}, "rows": [
+  {"label": "rest pose", "length": 0.000, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "greatsword_idle", "length": 2.400, "loop": true, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "greatsword_chop", "length": 2.600, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "greatsword_sweep", "length": 2.600, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "greatsword_thrust", "length": 2.300, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "crusader_death", "length": 3.000, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}},
+  {"label": "roar_eye_flare", "length": 3.000, "loop": false, "probe": {"gap": 0.243, "dir": [0.550, 0.829, 0.100]}}]}

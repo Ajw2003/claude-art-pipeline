@@ -30,8 +30,8 @@ fix is always followed by another look, never by the next stage.
 
 ```
 0 protect → 1 brief + style bible → 2 reference + concept + spec → HUMAN APPROVES
-          → 4 model → LOOK → 5 rig + pose test → LOOK → 6 clips → LOOK
-          → 7 engine import → LOOK in engine → 8 commit
+          → 4 model → LOOK → 5 rig + pose test → LOOK → 6 clips → FRAME SHEETS (Unity + Blender) → LOOK
+          → 7 engine import → FRAME SHEETS again → LOOK in engine → 8 commit
 ```
 
 Stage 3 (the spec) is now part of stage 2: reference, concept and spec go to the human together.
@@ -44,11 +44,62 @@ Stage 3 (the spec) is now part of stage 2: reference, concept and spec go to the
 | 3. Asset data | the project's own data entry per asset: dimensions, materials with hex, build bullets with real sizes, budget, rig and clip list | numbers on the sheet equal the numbers in the data and the approved spec |
 | 4. Model | mesh, baked textures, FBX/glTF/.blend, built by a blueprint script; a validator | review sheet: concept left, renders right (¾, front, side, wireframe); silhouette, proportion, colour, budget on the caption |
 | 5. Rig | armature with engine-standard bone names, skin weights, a test pose | posed views bend without tearing; props follow the hands; nothing below the floor |
-| 6. Clips | motion from reference: a mocap take retargeted, or key poses taken from reference frames; in-place clips exported per family; metrics (foot slide, lowest point, events) | 8 stills per clip on the actual model beside the reference frames, plus an MP4; feet do not slide; each key pose matches its reference |
-| 7. Engine | importer rules in code (rig type, loop flags, materials), a generated animator, a driver script | a screenshot or capture in the engine; the user checks what this machine cannot run |
+| 6. Clips | motion from reference: a mocap take retargeted, or key poses taken from reference frames; in-place clips exported per family; metrics (foot slide, lowest point, events) | **frame sheets of every clip in Unity and in Blender, opened, and a clean rest-pose comparison** (below); 8 stills per clip on the actual model beside the reference frames, plus an MP4; feet do not slide; each key pose matches its reference |
+| 7. Engine | importer rules in code (rig type, loop flags, materials), a generated animator, a driver script | **frame sheets again**, of the prefab as the game plays it; a screenshot or capture in the engine; the user checks what this machine cannot run |
 | 8. Commit | everything above, including every sheet and render | `git status` clean; docs tier updated |
 
 Full detail per stage, with commands: `references/stages.md`.
+
+## Frame sheets: every clip, in Unity and in Blender (mandatory)
+
+Any stage that makes or changes a clip, a controller or a clip's import settings (stage 6 and stage
+7) ends with **frame sheets of every clip, rendered twice**: once in the engine on the model as the
+game uses it, once in Blender on the model's own armature. Each sheet has the rest pose on top and a
+row per clip at five evenly spaced moments, from a three-quarter front view and a side view. The
+Stop gate refuses to pass while a changed clip file (`*.anim`, `*.bvh`, `*@*.fbx`, an FBX under an
+`animations/`, `anims/` or `clips/` folder), controller (`*.controller`, `*.overrideController`) or
+its `.meta` has no record pointing at both sheets, both newer than the change and both opened with
+Read this session.
+
+```bash
+# Unity, Edit mode only (never Play): a prefab, a model file or a folder of prefabs, optionally =<controller or clip file>
+bash scripts/unity_frame_sheets.sh --project <Unity project> --out docs/art/frames/<id> \
+     [--gap Hand.L Hand.R] [--dir <prop bone>] <entry> [<entry> ...]
+# Blender: the clip file's actions on the model's armature; also writes <name>_rest.json
+blender -b --factory-startup -P scripts/blender_frame_sheets.py -- --model <model.fbx> --clips <clip file.fbx> \
+     --out docs/art/frames/<id> --name <name> [--gap Hand.L Hand.R] [--dir <prop bone>]
+python scripts/frame_sheet_pages.py label docs/art/frames/<id>    # after Blender; the Unity script labels its own
+python scripts/frame_sheet_pages.py pages docs/art/frames/<id>    # overview pages for many models
+python scripts/frame_sheet_pages.py probes docs/art/frames/<id>   # bone gap and prop direction, Unity beside Blender
+```
+
+Render the clip file on its own skeleton too (enter the clip file itself as a Unity entry): the
+sheets differ where the engine changes the motion. Then open both sheets, and record the look:
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/review.py" frames --covers <clip files and controllers> \
+    --unity-sheet <png> --blender-sheet <png> --rest-pose <out>/<name>_rest.json \
+    --verdict pass --seen "<what you saw in both, at least 40 characters>"
+```
+
+**The rest poses must match.** `blender_frame_sheets.py` compares every bone's rest orientation in
+the clip file with the model's. A clip exported on another rest pose plays with every prop on those
+bones turned by the difference; the bone names still match, so the engine imports it without a
+word. The record is refused, and the stop blocked, while the comparison lists a bone more than 5
+degrees off, unless `--rest-ok` says why the difference does no harm. Fix it by re-exporting the
+clips on the model's own rest pose.
+
+What this catches, from a real review: `examples/anim-review/` (PlunderSpell, 2026-11-17). Weapons
+on 14 enemies followed an empty-handed arm swing, and the Crusader Boss's clip file had been
+exported on another rest pose (hands 79 and 85 degrees off), so his greatsword was 65 degrees off
+in game. Every one of those clips had passed its checks. Start with its `report.md`.
+
+The Unity renderer keeps three details that each cost a session: Humanoid clips are sampled with
+`AnimationMode.SampleAnimationClip` (plain `SampleAnimation` and a PlayableGraph leave the pose
+frozen in a preview scene); `SkinnedMeshRenderer.forceMatrixRecalculationPerRender` is set, or every
+render in one Editor frame shows the first pose; and it renders one entry per call and resumes,
+because the Unity CLI stops a call after 5 seconds. A project without Unity or Blender sets
+`"anim_globs": []` in `.art-pipeline.json` and says so; the gate is then off for clips.
 
 ## How to work through it
 
@@ -149,3 +200,4 @@ workers at once on one checkout, and each stages only its own paths.
 - `references/spec-template.md`: the per-asset spec a human approves, and what counts as reference.
 - `references/tooling-and-traps.md`: Blender as a module, the blueprint pattern, rigging,
   AnimForge-style clips, engine import, and the traps that already cost a day.
+- `examples/anim-review/`: the frame-sheet review that made the step mandatory, with what it found.

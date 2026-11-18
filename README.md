@@ -81,6 +81,15 @@ was opened (Read) this session and is newer than the item's last source edit. A 
 side cannot show a prop inside the body; a top view can. Records are
 `<review_dir>/<item>.<clips>.clip-review.json`.
 
+Frame sheets are always on for animation. A changed clip file, controller or clip import setting
+(`anim_globs`, default `*.anim`, `*.bvh`, `*.controller`, `*.overrideController`, `*@*.fbx` and FBX
+files under `animations/`, `animation/`, `anims/` or `clips/`, plus each one's `.meta`) blocks the
+stop until `review.py frames --covers ... --unity-sheet U.png --blender-sheet B.png --rest-pose
+R.json --verdict pass --seen "..."` points at both sheets, both newer than the change and opened
+this session, and the rest-pose comparison lists no bone over its limit (or `--rest-ok` explains
+it). The renderers are in the skill's `scripts/`; `examples/anim-review/` is the review that made
+this mandatory. `"anim_globs": []` turns it off. Records are `<review_dir>/<clip>.<hash>.frames.json`.
+
 Every Bash hook acts on each repo the command can reach: the working directory, its `cd`, `pushd`
 and `git -C` targets, and the repos of absolute paths it names. A Write or Edit is judged by the
 repo of the file. The Stop gate checks the working directory's repo and every repo the session
@@ -112,7 +121,7 @@ the sheet PNG exists, is at least as new as the model, and was opened this sessi
 Override per project with `.art-pipeline.json` at the repo root:
 `{"model_globs": [...], "exclude": [...], "review_dir": "...", "production_paths": [...],
 "production_exclude": [...], "producer_commands": [...], "source_paths": [...], "checks": [...],
-"gated_commands": [...], "clip_review_views": [...], "spec_dir": "...", "reference_dir": "...", "approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
+"gated_commands": [...], "clip_review_views": [...], "anim_globs": [...], "spec_dir": "...", "reference_dir": "...", "approval_dir": "..."}`. Only a human edits this file: the hooks refuse the agent's writes to it.
 
 Doc-drift check: add `"doc_check": "<shell command>"` (run from the repo root, 60 s timeout) and
 optionally `"doc_check_paths": [...]` (fnmatch on repo-relative paths, default

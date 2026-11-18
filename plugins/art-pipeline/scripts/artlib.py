@@ -34,6 +34,11 @@ AUDIO_KINDS = ("sfx", "music")
 # Art-gated files that are the code or data an asset is made FROM, not the asset: writing them
 # still needs an approval, but changing them is not a build and spends no budget.
 DEFAULT_SOURCES = ["*.py", "*.cs", "*.js", "*.ts", "*.json", "*.md", "*.txt", "*.sh", "*.yaml", "*.yml", "*.toml"]
+# Clip files, controllers and their engine import settings (<file>.meta): changing one needs frame sheets of every clip
+# rendered in Unity and in Blender, opened, and a rest-pose comparison of the clip file against the model.
+DEFAULT_ANIM = ["*.anim", "*.bvh", "*.controller", "*.overridecontroller", "*@*.fbx", "*/animations/*.fbx",
+                "*/animation/*.fbx", "*/anims/*.fbx", "*/clips/*.fbx"]
+FRAME_SHEETS = ("unity_sheet", "blender_sheet")
 DEFAULT_ITERATIONS = 5
 MAX_ITERATIONS = 20
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,10 +75,10 @@ def load_config(root):
            "production_paths": DEFAULT_PRODUCTION, "production_exclude": ["*.meta", "docs/*"],
            "producer_commands": DEFAULT_PRODUCERS, "source_paths": DEFAULT_SOURCES,
            "checks": [], "gated_commands": [], "clip_review_views": [], "spec_dir": "docs/art/specs",
-           "reference_dir": "docs/art/reference", "approval_dir": "docs/art/approvals"}
+           "reference_dir": "docs/art/reference", "approval_dir": "docs/art/approvals", "anim_globs": DEFAULT_ANIM}
     path = os.path.join(root, ".art-pipeline.json")
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8-sig") as fh:
             user = json.load(fh)  # a bad config raises; callers announce it
         for k in cfg:
             if k in user:
@@ -296,6 +301,79 @@ def check_model(root, model, recs, seen_paths, cfg):
     return "fail", last
 
 
+def anim_asset(rel, cfg):
+    """The clip file or controller rel is, or whose import settings it is (<asset>.meta); None when it is neither."""
+    asset = rel[:-5] if rel.lower().endswith(".meta") else rel
+    return asset if not excluded(asset, cfg) and matches(asset, cfg.get("anim_globs") or []) else None
+
+
+def frames_record_name(covers):
+    key = "|".join(sorted(covers))
+    return "%s.%s.frames.json" % (slugify(os.path.basename(sorted(covers)[0])),
+                                  hashlib.sha1(key.encode("utf-8")).hexdigest()[:8])
+
+
+def frames_hint(asset):
+    sk = os.path.normpath(os.path.join(HERE, "..", "skills", "art-pipeline", "scripts"))
+    return ("render every clip as frame sheets in Unity (bash \"%s\" ...) and in Blender (blender -b --factory-startup -P "
+            "\"%s\" -- ...), open both with Read, then: python \"%s\" frames --covers %s --unity-sheet <png> "
+            "--blender-sheet <png> --rest-pose <name>_rest.json --verdict pass --seen \"<what you saw, >= %d chars>\"" % (
+                os.path.join(sk, "unity_frame_sheets.sh"), os.path.join(sk, "blender_frame_sheets.py"),
+                os.path.join(HERE, "review.py"), asset, MIN_SEEN))
+
+
+def rest_pose_problems(root, rec):
+    """Problems with the record's rest-pose comparison: missing, unreadable, or bones turned past its limit and not
+    explained in rest_ok (a clip exported on another rest pose turns every prop on those bones by the difference)."""
+    rp = rec.get("rest_pose") if isinstance(rec.get("rest_pose"), str) else ""
+    if not rp or not os.path.isfile(os.path.join(root, rp)):
+        return ["rest-pose comparison %r does not exist (blender_frame_sheets.py writes <name>_rest.json)" % rp]
+    try:
+        with open(os.path.join(root, rp), "r", encoding="utf-8-sig") as fh:
+            mis = json.load(fh).get("mismatch") or []
+    except Exception as exc:
+        return ["rest-pose comparison %s is unreadable (%s)" % (rp, exc)]
+    if mis and len(str(rec.get("rest_ok") or "").strip()) < MIN_SEEN:
+        worst = sorted(mis, key=lambda m: -m.get("deg", 0))[:6]
+        return ["the clip file was exported on another rest pose than the model (%s): re-export the clips on the "
+                "model's own rest pose, or say in --rest-ok why the difference does no harm" % ", ".join(
+                    "%s %.0f deg" % (m.get("bone"), m.get("deg", 0)) for m in worst)]
+    return []
+
+
+def check_frames(root, rel, asset, recs, seen_paths):
+    """('ok'|'fail', [problems]) for a changed clip file, controller or import setting: a record must cover it with a
+    Unity and a Blender frame sheet, both newer than the change and opened this session, a pass verdict, and a
+    rest-pose comparison without unexplained mismatches."""
+    mine = [r for r in recs if asset in (r.get("covers") or [])]
+    if not mine:
+        return "fail", ["no frame-sheet review covers it: " + frames_hint(asset)]
+    changed = os.path.getmtime(os.path.join(root, rel))
+    best = None
+    for r in mine:
+        probs = []
+        if r.get("verdict") != "pass":
+            probs.append("the frame-sheet review's verdict is %r, not pass" % r.get("verdict"))
+        if len(str(r.get("seen") or "").strip()) < MIN_SEEN:
+            probs.append("\"seen\" must say what the reviewer saw (>= %d chars)" % MIN_SEEN)
+        for k in FRAME_SHEETS:
+            sh = r.get(k) if isinstance(r.get(k), str) else ""
+            sabs = os.path.join(root, sh)
+            what = k.replace("_", " ")
+            if not sh or not os.path.isfile(sabs):
+                probs.append("%s %r does not exist" % (what, sh))
+            elif os.path.getmtime(sabs) < changed:
+                probs.append("%s %s is older than %s: render it again" % (what, sh, rel))
+            elif norm(sabs) not in seen_paths:
+                probs.append("%s %s was not opened (Read) this session" % (what, sh))
+        probs += rest_pose_problems(root, r)
+        if not probs:
+            return "ok", []
+        if best is None or len(probs) < len(best):
+            best = probs
+    return "fail", best
+
+
 def evaluate(root, gitdir, session_id):
     """Shared by the Stop gate and `review.py status`. Returns (cfg, ledger, results, bad)
     where results = [(model, status, problems)]."""
@@ -309,6 +387,13 @@ def evaluate(root, gitdir, session_id):
         if is_model(m, cfg) and os.path.isfile(os.path.join(root, m)):
             st, pr = check_model(root, m, recs, seen, cfg)
             res.append((m, st, pr))
+    frecs, fbad = load_records(root, cfg, suffix=".frames.json")
+    bad = bad + fbad
+    for n in names:
+        asset = anim_asset(n, cfg)
+        if asset and os.path.isfile(os.path.join(root, n)):
+            st, pr = check_frames(root, n, asset, frecs, seen)
+            res.append((n + " (frame sheets)", st, pr))
     approvals = load_approvals(root, cfg, led)
     for sid, rec, pr in approvals:
         if rec is None:  # "forged" never releases the stop: a fake approval must be removed, not outlasted

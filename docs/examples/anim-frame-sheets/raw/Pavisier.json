@@ -1,0 +1,7 @@
+{"name": "Pavisier", "engine": "unity", "asset": "Assets/_Project/Prefabs/Enemies/LateMedieval/Pavisier.prefab", "clips_from": "Assets/Models/ArtBible/Animations/Carry/Pavisier.overrideController", "cell": [240, 320], "steps": 5, "views": ["three-quarter", "side"], "axes": "x right, y up, z forward", "probe_bones": {"gap": "Hand.L Hand.R", "dir": "Greatsword"}, "rows": [
+  {"label": "rest pose", "length": 0.000, "loop": false, "probe": {"gap": 0.726}},
+  {"label": "idle", "length": 3.000, "loop": true, "probe": {"gap": 0.550}},
+  {"label": "walk_slow", "length": 1.100, "loop": true, "probe": {"gap": 0.642}},
+  {"label": "walk", "length": 0.867, "loop": true, "probe": {"gap": 0.716}},
+  {"label": "run_pursuit", "length": 0.667, "loop": true, "probe": {"gap": 0.599}},
+  {"label": "Pavisier_carry", "length": 1.000, "loop": true, "probe": {"gap": 0.726}}]}

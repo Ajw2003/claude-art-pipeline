@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.0 - 2026-11-17
+
+From PlunderSpell's enemy animation review, where frame sheets of every clip found what every
+earlier check passed: weapons on 14 enemies following an empty-handed arm swing, and the Crusader
+Boss's clip file exported on another rest pose, his greatsword 65 degrees off in game.
+
+- **Frame sheets are a required step for animation and engine import.** New renderers in the
+  skill's `scripts/`: `unity_frame_sheets.sh` + `.cs` (Edit mode, a row per clip, five moments,
+  three-quarter and side views, rest pose on top, one entry per Editor call),
+  `blender_frame_sheets.py` (the clip file's actions on the model's armature, same layout) and
+  `frame_sheet_pages.py` (labels, overview pages, a bone-probe table: the gap between two bones and
+  where a prop bone points, Unity beside Blender). The Stop gate blocks a changed clip file,
+  controller or clip `.meta` (`anim_globs`) until `review.py frames` records both sheets, newer than
+  the change and opened this session.
+- **Rest-pose comparison.** `blender_frame_sheets.py` writes `<name>_rest.json`, every bone's rest
+  orientation in the clip file against the model's; a bone more than 5 degrees off blocks the record
+  and the stop unless `--rest-ok` explains it.
+- **Worked example:** `skills/art-pipeline/examples/anim-review/`, the PlunderSpell sheets and report.
+- `.art-pipeline.json` saved with a byte-order mark now loads (PlunderSpell's had one, and every hook
+  failed on it).
+- `verify.py`: 95 checks.
+
 ## 0.5.0 - 2026-11-17
 
 - **Clip reviews.** New `clip_review_views` and `review.py clip`: when set, a movie or export of a

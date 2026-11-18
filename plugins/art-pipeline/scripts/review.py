@@ -3,6 +3,7 @@
 
   review.py record --model PATH --sheet PNG --verdict pass|fail|waived --seen "TEXT"
   review.py clip --item NAME --clips C [C ...] --views top side ... --sheet PNG --verdict pass --seen "TEXT"
+  review.py frames --covers CLIPFILE [...] --unity-sheet PNG --blender-sheet PNG --rest-pose JSON --verdict pass --seen "TEXT"
   review.py status
 Run from inside the repo. Stdlib only."""
 
@@ -36,6 +37,15 @@ def main(argv):
     c.add_argument("--sheet", required=True)
     c.add_argument("--verdict", required=True, choices=["pass", "fail", "waived"])
     c.add_argument("--seen", required=True)
+    f = sub.add_parser("frames", help="record a look at a clip file's frame sheets, Unity and Blender (needed at the "
+                                       "stop for every changed clip file, controller or clip import setting)")
+    f.add_argument("--covers", nargs="+", required=True, help="the clip files and controllers the sheets show")
+    f.add_argument("--unity-sheet", required=True)
+    f.add_argument("--blender-sheet", required=True)
+    f.add_argument("--rest-pose", required=True, help="the <name>_rest.json blender_frame_sheets.py wrote")
+    f.add_argument("--rest-ok", default="", help="why a rest-pose mismatch it reports does no harm")
+    f.add_argument("--verdict", required=True, choices=["pass", "fail"])
+    f.add_argument("--seen", required=True)
     sub.add_parser("status")
     a = ap.parse_args(argv[1:])
     info = artlib.repo_info(os.getcwd())
@@ -63,6 +73,26 @@ def main(argv):
         with open(path, "w", encoding="utf-8") as fh:
             json.dump({"item": a.item, "clips": a.clips, "views": a.views, "sheet": sheet, "verdict": a.verdict,
                        "seen": a.seen, "date": artlib.now()}, fh, indent=2)
+            fh.write("\n")
+        print(path)
+        return 0
+    if a.cmd == "frames":
+        rec = {"covers": [rel(root, c) for c in a.covers], "unity_sheet": rel(root, a.unity_sheet),
+               "blender_sheet": rel(root, a.blender_sheet), "rest_pose": rel(root, a.rest_pose),
+               "rest_ok": a.rest_ok, "verdict": a.verdict, "seen": a.seen, "date": artlib.now()}
+        errs = ["%s does not exist" % p for p in rec["covers"] + [rec["unity_sheet"], rec["blender_sheet"]]
+                if not os.path.isfile(os.path.join(root, p))]
+        if len(a.seen.strip()) < artlib.MIN_SEEN:
+            errs.append("--seen must be >= %d chars (say what you saw)" % artlib.MIN_SEEN)
+        errs += artlib.rest_pose_problems(root, rec)
+        if errs:
+            print("review.py: " + "; ".join(errs), file=sys.stderr)
+            return 1
+        d = os.path.join(root, cfg["review_dir"])
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, artlib.frames_record_name(rec["covers"]))
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, indent=2)
             fh.write("\n")
         print(path)
         return 0

@@ -126,10 +126,13 @@ Clips are built by code on one shared reference skeleton, so one clip retargets 
 - export per family (base, weapon, signature) as animation-only FBX; re-import to verify every take
   and frame count; write a manifest with loop flags, events and metrics.
 
-Review per clip: 8 stills on the actual target model with the matching reference frames beside
-them, a foot-contact trace for locomotion, an MP4.
+Review per clip: frame sheets of every clip in Unity and in Blender with the rest-pose comparison
+(SKILL.md, "Frame sheets"; the Stop gate requires them), 8 stills on the actual target model with
+the matching reference frames beside them, a foot-contact trace for locomotion, an MP4.
 
-**Gate:** each key pose matches its reference frame side by side, feet do not slide (metric under
+**Gate:** both frame sheets opened and recorded with `review.py frames`, no rest-pose mismatch,
+props held as designed in every clip (a weapon on a hand bone follows an empty-handed swing),
+each key pose matches its reference frame side by side, feet do not slide (metric under
 1 cm), nothing below the floor, the pose reads as the action at a glance, and a one-shot ends where the next state expects it (a death ends lying still).
 
 ## 7. Engine
@@ -144,7 +147,8 @@ Everything set in code, nothing in the Inspector:
   networked game, anything the movement does not show (crouch, cast) is synced by the owner;
 - tests: classification, loop flags against the manifest, driver parameters from inputs.
 
-**Gate:** a capture in the engine. If this machine cannot run the engine, the work is labelled
+**Gate:** frame sheets of the prefab with the controller the game uses, rendered again after any
+import or controller change, and a capture in the engine. If this machine cannot run the engine, the work is labelled
 UNTESTED and the user gets the exact menu item and what they should see.
 
 ## 8. Docs agree, then commit

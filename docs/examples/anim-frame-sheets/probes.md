@@ -1,0 +1,16 @@
+# Bone probes at each clip's first frame
+
+Gap: distance between Hand.L Hand.R. Dir: where Greatsword points, x right, y up, z forward.
+
+| Clip | CrusaderBoss+Crusader_Signature (unity) | CrusaderBoss (unity) | CrusaderBossVarsity (unity) | CrusaderBoss_blender (blender) | CrusaderBoss_blender (blender, the clip file's own skeleton) | CrusaderBoss_reexport_blender (blender) | CrusaderBoss_reexport_blender (blender, the clip file's own skeleton) | Crusader_Signature (unity) |
+|---|---|---|---|---|---|---|---|---|
+| rest pose | gap 0.24 m, dir (+0.00, -0.81, +0.59) | gap 0.24 m, dir (+0.00, -0.81, +0.59) | gap 0.24 m, dir (+0.00, -0.81, +0.59) | gap 0.24 m, dir (+0.00, -0.81, +0.59) | - | gap 0.24 m, dir (+0.00, -0.81, +0.59) | - | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| greatsword_idle | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | not in this sheet | gap 0.24 m, dir (+0.29, -0.36, +0.89) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| greatsword_chop | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | not in this sheet | gap 0.24 m, dir (+0.29, -0.36, +0.89) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| greatsword_sweep | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | not in this sheet | gap 0.24 m, dir (+0.29, -0.36, +0.89) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| greatsword_thrust | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | not in this sheet | gap 0.24 m, dir (+0.29, -0.36, +0.89) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| crusader_death | gap 0.24 m, dir (+0.55, +0.83, +0.10) | not in this sheet | not in this sheet | gap 0.24 m, dir (+0.29, -0.36, +0.89) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| roar_eye_flare | gap 0.24 m, dir (+0.55, +0.83, +0.10) | not in this sheet | not in this sheet | gap 0.24 m, dir (+0.29, -0.36, +0.89) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) | gap 0.24 m, dir (+0.55, +0.83, +0.10) |
+| walk_slow | not in this sheet | gap 1.01 m, dir (+0.83, -0.56, +0.04) | not in this sheet | not in this sheet | not in this sheet | not in this sheet | not in this sheet | not in this sheet |
+| walk | not in this sheet | gap 1.12 m, dir (+0.81, -0.54, +0.24) | not in this sheet | not in this sheet | not in this sheet | not in this sheet | not in this sheet | not in this sheet |
+| run_pursuit | not in this sheet | gap 0.94 m, dir (+0.79, +0.14, +0.59) | not in this sheet | not in this sheet | not in this sheet | not in this sheet | not in this sheet | not in this sheet |
