@@ -459,7 +459,8 @@ try:
     rc, _, err = run([sys.executable, APPROVE, "grant", "powder"], cwd=d)
     report(rc == 1 and "real terminal" in err, "approve.py grant refuses without a real terminal")
     rc, o = gate(d)
-    report("Assets/Anim/musk0.anim" not in o.get("reason", ""), "gate: art covered by an approval passes")
+    report("- Assets/Anim/musk0.anim\n" not in o.get("reason", "") + "\n",  # its frame-sheet line is a later test's
+           "gate: art covered by an approval passes")
     write(d, "docs/art/specs/powder.json", open(os.path.join(d, "docs/art/specs/powder.json")).read() + " ")
     dec, why = pre(d, "Write", musk)
     rc, o = gate(d)
@@ -721,7 +722,8 @@ try:
     see(d, bs)
     frames("--rest-ok", "x" * 45, covers=("Assets/Anim/hero.controller", "Assets/Anim/hero.controller.meta"))
     _, o = gate(d)
-    report("frame sheets" not in o.get("reason", ""), "frame sheets: both sheets opened and the rest pose explained pass")
+    # only this repo's files: s1 also stops on the other repos earlier checks worked in
+    report("hero.controller" not in o.get("reason", ""), "frame sheets: both sheets opened and the rest pose explained pass")
     write(d, "Assets/Anim/hero.controller", "ctrl 2", mtime=t0 + 10)
     _, o = gate(d)
     report(o.get("decision") == "block" and "older than Assets/Anim/hero.controller" in o.get("reason", ""),
