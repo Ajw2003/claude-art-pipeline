@@ -374,11 +374,43 @@ def check_frames(root, rel, asset, recs, seen_paths):
     return "fail", best
 
 
-def unattended():
-    """ART_PIPELINE=unattended, set by the human in the environment Claude Code starts in: nobody is
-    there to approve a spec, so art needs no approval - everything else (forged-approval and
-    protected-file guards, model and frame-sheet reviews) still applies."""
-    return os.environ.get("ART_PIPELINE", "").strip().lower() == "unattended"
+MODE_FILE = "house-rules-mode.json"   # the house-rules plugin's switch file; its `unattended on` line is read here too
+
+
+def _typed_unattended(start):
+    """aj's typed `unattended on|off` ("on"/"off"/None), read from house-rules' switch files so one line
+    covers both plugins: the repo's .claude/ (a worktree's main checkout too) beats the Claude config folder."""
+    dirs = []
+    info = repo_info(start) if start else None
+    if info:
+        dirs.append(info[0])
+        try:
+            common = git(info[0], "rev-parse", "--git-common-dir").strip()
+            dirs.append(os.path.dirname(os.path.normpath(os.path.join(info[0], common))))
+        except RuntimeError:
+            pass
+    elif start:
+        dirs.append(start)
+    files = [os.path.join(d, ".claude", MODE_FILE) for d in dirs]
+    files.append(os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), MODE_FILE))
+    for f in files:   # first file that says anything wins: this folder before everywhere
+        try:
+            with open(f, encoding="utf-8-sig") as fh:
+                val = json.load(fh).get("unattended")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if val in ("on", "off"):
+            return val
+    return None
+
+
+def unattended(start=None):
+    """ART_PIPELINE=unattended in the environment Claude Code starts in, or `unattended on` typed in chat
+    (house-rules' switch file): nobody is there to approve a spec, so art needs no approval - everything
+    else (forged-approval and protected-file guards, model and frame-sheet reviews) still applies."""
+    if os.environ.get("ART_PIPELINE", "").strip().lower() == "unattended":
+        return True
+    return _typed_unattended(start) == "on"
 
 
 def evaluate(root, gitdir, session_id):
