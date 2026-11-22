@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 - 2026-11-22
+
+- **Unattended mode** (`ART_PIPELINE=unattended`) for overnight runs: art needs no human-approved
+  spec (writes and builds allowed, nothing undone), `AskUserQuestion` is refused so nothing waits for
+  a person, and the Stop gate lists art made without approval instead of blocking. Approval, config,
+  settings and ledger protection, forged-approval blocking and the model and frame-sheet reviews are
+  unchanged. `review.py status` shows such files as `UNAPPROVED`.
+- New `scripts/overnight.sh`: one launcher that sets this mode, switches house-rules' feature groups
+  off (autosave and handoff stay on), shortens its prompt timeout to 30 s and starts Claude Code in
+  bypass mode.
+- `verify.py`: 103 checks.
+
 ## 0.6.0 - 2026-11-17
 
 From PlunderSpell's enemy animation review, where frame sheets of every clip found what every

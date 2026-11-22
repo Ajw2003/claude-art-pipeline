@@ -140,5 +140,26 @@ loudly.
 they are off and do not check. `ART_PIPELINE_PYTHON` picks the
 interpreter, `ART_PIPELINE_DEBUG=1` traces `run.sh`.
 
+## Unattended (overnight) mode
+
+For a run with nobody there to approve anything, start Claude Code with
+`sh plugins/art-pipeline/scripts/overnight.sh` (arguments pass through to `claude`, so
+`sh overnight.sh -p "..."` runs headless). It sets `ART_PIPELINE=unattended`, switches every
+house-rules feature group off except autosave and handoff, sets `HOUSE_RULES_PROMPT_TIMEOUT=30`, and
+starts `claude --dangerously-skip-permissions`.
+
+With `ART_PIPELINE=unattended`: art needs no approved spec (no refusals, nothing undone, no build
+budget), `AskUserQuestion` is refused so nothing waits for a person, and the session is told to log
+its would-be questions and choices in `docs/art/UNATTENDED.md`. Still enforced: approvals,
+`.art-pipeline.json`, the plugin settings and the ledger cannot be edited, `approve.py grant` and
+plugin disable are refused, a forged approval blocks the stop, and models and animation still need
+their review sheets. The Stop gate lists the art made without an approved spec for the morning
+(`review.py status` shows it as `UNAPPROVED`).
+
+house-rules keeps its destructive-command guard, main-branch guard and credit check, which have no
+switch. A prompt one of them raises is refused after 30 seconds and listed under "Waiting on you".
+Run overnight on a throwaway branch or a clone: bypass mode plus no approvals means nothing but
+those guards stands between the agent and your files.
+
 Verify: `python plugins/art-pipeline/scripts/verify.py` (CI runs it on every push). Design
 notes: `docs/offshoots-plan.md` in Ajw2003/AjsClaudeCodeTools.
