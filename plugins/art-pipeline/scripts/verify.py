@@ -790,6 +790,25 @@ try:
     report(g.get("decision") == "block" and "art/hero.fbx" in g.get("reason", ""),
            "unattended: a model with no review record still blocks the stop (the agent can do that alone)")
 
+    # the same mode, switched on by the line `unattended on` typed in chat (house-rules' switch file)
+    d = mkrepo(art=False, prod=True)
+    cfgdir = tempfile.mkdtemp(prefix="art-pipeline-cfg-")
+    TMP.append(cfgdir)
+    CFG = {"CLAUDE_CONFIG_DIR": cfgdir}
+    sw = {"file_path": os.path.join(d, "Assets/Anim/typed.anim")}
+    report(pre(d, "Write", sw, session="ty1", env=CFG)[0] == "deny", "typed unattended: with no switch file art is refused")
+    write(d, ".claude/house-rules-mode.json", json.dumps({"unattended": "on"}))
+    report(pre(d, "Write", sw, session="ty1", env=CFG)[0] is None
+           and pre(d, "AskUserQuestion", {"questions": [{"question": "Which hat?"}]}, session="ty1", env=CFG)[0] == "deny",
+           "typed unattended: `unattended on` in the repo's switch file allows art and refuses questions")
+    write(d, ".claude/house-rules-mode.json", json.dumps({"unattended": "off"}))
+    write(cfgdir, "house-rules-mode.json", json.dumps({"unattended": "on"}))
+    report(pre(d, "Write", sw, session="ty1", env=CFG)[0] == "deny",
+           "typed unattended: this folder's `off` beats an everywhere `on`")
+    os.remove(os.path.join(d, ".claude/house-rules-mode.json"))
+    report(pre(d, "Write", sw, session="ty1", env=CFG)[0] is None,
+           "typed unattended: an everywhere `on` applies in a folder with no file of its own")
+
     # 18-20 run.sh
     env_np = {"PATH": "", "ART_PIPELINE_PYTHON": ""}
     for ev, want in (("start", "NOT armed"), ("gate", "did NOT run")):

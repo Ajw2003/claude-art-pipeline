@@ -445,7 +445,7 @@ def evaluate(root, gitdir, session_id):
                 why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
                 # unattended: listed for the morning instead of blocking the stop
-                res.append((n, "unapproved" if unattended() else "fail", why))
+                res.append((n, "unapproved" if unattended(root) else "fail", why))
     for sid, rec, pr in approvals:
         bp = builds_path(rec or {})
         if bp and os.path.isfile(bp):
