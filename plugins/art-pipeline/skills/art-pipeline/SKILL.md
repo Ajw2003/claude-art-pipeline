@@ -23,6 +23,24 @@ beside its reference and concept and written down what they saw. A validator tha
 `art-pipeline` plugin's Stop hook enforces this: a session cannot end while a model it changed has
 no review sheet newer than the model, opened in this session, with a written verdict.
 
+## Unattended runs (the session context says "UNATTENDED run", `ART_PIPELINE=unattended`)
+
+Nobody is there, so every "ask the human", "the human approves" and "show the human" below becomes
+"decide, do it, and write it down", and the run never stops to wait. Specifically:
+
+- **Approvals and the budget are off.** Write the brief and the spec yourself (still with the best
+  real-world reference you can get) and build straight away; there is no approval to wait for and no
+  build budget. `approve.py` and `AskUserQuestion` are not used (the question tool is refused).
+- **Reference you cannot fetch:** use what the project and `docs/art/reference/` already hold; if
+  there is none, build from your best knowledge, say "no reference available (unattended)" in the spec
+  and in the log, and carry on. Do not stop.
+- **Decisions that are the user's** (the look, a clash with an approved plan, an over-budget fix):
+  take the most conservative, easiest-to-reverse option and record the question and your choice in
+  `docs/art/UNATTENDED.md` (one entry each, committed) for the morning.
+- **Still mandatory:** rule two. Open every review sheet and frame sheet yourself, write what you saw,
+  fix and look again. The Stop gate still blocks on a missing review.
+- **Engine work you cannot run** is marked UNTESTED in the log; do not wait for a person to run it.
+
 ## The stages
 
 Each stage ends at a gate: **open the image with the Read tool, compare, write what you saw.** A

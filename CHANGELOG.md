@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0 - 2026-11-22
+
+- **Unattended mode can be switched on by typing `unattended on`** (the house-rules plugin saves it
+  in its `house-rules-mode.json`; this plugin reads the same file, the repo's own beating the Claude
+  config folder's). `unattended off` switches it back. `ART_PIPELINE=unattended` still works. The skill
+  has an "Unattended runs" section: decide, build and log instead of asking or waiting.
+- `verify.py`: 107 checks.
+
+## 0.7.0 - 2026-11-22
+
+- **Unattended mode** (`ART_PIPELINE=unattended`) for overnight runs: art needs no human-approved
+  spec (writes and builds allowed, nothing undone), `AskUserQuestion` is refused so nothing waits for
+  a person, and the Stop gate lists art made without approval instead of blocking. Approval, config,
+  settings and ledger protection, forged-approval blocking and the model and frame-sheet reviews are
+  unchanged. `review.py status` shows such files as `UNAPPROVED`.
+- New `scripts/overnight.sh`: one launcher that sets this mode, switches house-rules' feature groups
+  off (autosave and handoff stay on), shortens its prompt timeout to 30 s and starts Claude Code in
+  bypass mode.
+- `verify.py`: 103 checks.
+
 ## 0.6.0 - 2026-11-17
 
 From PlunderSpell's enemy animation review, where frame sheets of every clip found what every

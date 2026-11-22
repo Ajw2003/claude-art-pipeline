@@ -374,6 +374,45 @@ def check_frames(root, rel, asset, recs, seen_paths):
     return "fail", best
 
 
+MODE_FILE = "house-rules-mode.json"   # the house-rules plugin's switch file; its `unattended on` line is read here too
+
+
+def _typed_unattended(start):
+    """aj's typed `unattended on|off` ("on"/"off"/None), read from house-rules' switch files so one line
+    covers both plugins: the repo's .claude/ (a worktree's main checkout too) beats the Claude config folder."""
+    dirs = []
+    info = repo_info(start) if start else None
+    if info:
+        dirs.append(info[0])
+        try:
+            common = git(info[0], "rev-parse", "--git-common-dir").strip()
+            dirs.append(os.path.dirname(os.path.normpath(os.path.join(info[0], common))))
+        except RuntimeError:
+            pass
+    elif start:
+        dirs.append(start)
+    files = [os.path.join(d, ".claude", MODE_FILE) for d in dirs]
+    files.append(os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), MODE_FILE))
+    for f in files:   # first file that says anything wins: this folder before everywhere
+        try:
+            with open(f, encoding="utf-8-sig") as fh:
+                val = json.load(fh).get("unattended")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if val in ("on", "off"):
+            return val
+    return None
+
+
+def unattended(start=None):
+    """ART_PIPELINE=unattended in the environment Claude Code starts in, or `unattended on` typed in chat
+    (house-rules' switch file): nobody is there to approve a spec, so art needs no approval - everything
+    else (forged-approval and protected-file guards, model and frame-sheet reviews) still applies."""
+    if os.environ.get("ART_PIPELINE", "").strip().lower() == "unattended":
+        return True
+    return _typed_unattended(start) == "on"
+
+
 def evaluate(root, gitdir, session_id):
     """Shared by the Stop gate and `review.py status`. Returns (cfg, ledger, results, bad)
     where results = [(model, status, problems)]."""
@@ -405,7 +444,8 @@ def evaluate(root, gitdir, session_id):
             if not any(not pr for _, _, pr in cov):  # a spent budget does not undo what was built within it
                 why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
-                res.append((n, "fail", why))
+                # unattended: listed for the morning instead of blocking the stop
+                res.append((n, "unapproved" if unattended(root) else "fail", why))
     for sid, rec, pr in approvals:
         bp = builds_path(rec or {})
         if bp and os.path.isfile(bp):
