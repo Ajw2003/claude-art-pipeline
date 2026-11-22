@@ -148,7 +148,12 @@ For a run with nobody there to approve anything, start Claude Code with
 house-rules feature group off except autosave and handoff, sets `HOUSE_RULES_PROMPT_TIMEOUT=30`, and
 starts `claude --dangerously-skip-permissions`.
 
-With `ART_PIPELINE=unattended`: art needs no approved spec (no refusals, nothing undone, no build
+To switch it on from inside a session instead, type `unattended on` in the chat (`unattended off` to
+undo; add `everywhere` for all folders). The house-rules plugin saves the line in
+`.claude/house-rules-mode.json` and this plugin reads that file, so one line covers both plugins; do not
+commit the file while it says `on`.
+
+With `ART_PIPELINE=unattended` (or the typed line): art needs no approved spec (no refusals, nothing undone, no build
 budget), `AskUserQuestion` is refused so nothing waits for a person, and the session is told to log
 its would-be questions and choices in `docs/art/UNATTENDED.md`. Still enforced: approvals,
 `.art-pipeline.json`, the plugin settings and the ledger cannot be edited, `approve.py grant` and

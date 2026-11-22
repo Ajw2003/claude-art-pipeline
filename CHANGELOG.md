@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 - 2026-11-22
+
+- **Unattended mode can be switched on by typing `unattended on`** (the house-rules plugin saves it
+  in its `house-rules-mode.json`; this plugin reads the same file, the repo's own beating the Claude
+  config folder's). `unattended off` switches it back. `ART_PIPELINE=unattended` still works. The skill
+  has an "Unattended runs" section: decide, build and log instead of asking or waiting.
+- `verify.py`: 107 checks.
+
 ## 0.7.0 - 2026-11-22
 
 - **Unattended mode** (`ART_PIPELINE=unattended`) for overnight runs: art needs no human-approved
