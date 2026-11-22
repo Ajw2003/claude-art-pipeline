@@ -272,23 +272,23 @@ try:
     report(ok1 and gate(d)[1].get("decision") == "block", "doc_check_paths overrides the default paths")
 
     # --- approval gate: no art without a human-approved spec and reference ------------------
-    def pre(d, tool, ti, session="s1"):
-        rc, out, _ = hook("pre", d, {"tool_name": tool, "tool_input": ti}, session=session)
+    def pre(d, tool, ti, session="s1", env=None):
+        rc, out, _ = hook("pre", d, {"tool_name": tool, "tool_input": ti}, session=session, env=env)
         o = json.loads(out) if out.strip() else {}
         h = o.get("hookSpecificOutput") or {}
         return h.get("permissionDecision"), h.get("permissionDecisionReason", "") or o.get("systemMessage", "")
 
-    def after(d, session="s1"):
-        rc, out, _ = hook("after", d, {"tool_name": "Bash", "tool_input": {"command": "x"}}, session=session)
+    def after(d, session="s1", env=None):
+        rc, out, _ = hook("after", d, {"tool_name": "Bash", "tool_input": {"command": "x"}}, session=session, env=env)
         return json.loads(out) if out.strip() else {}
 
-    def bash(d, cmd, session="s1"):
+    def bash(d, cmd, session="s1", env=None):
         """pre, then (if allowed) run the command for real, then after - as Claude Code would."""
-        dec, why = pre(d, "Bash", {"command": cmd}, session)
+        dec, why = pre(d, "Bash", {"command": cmd}, session, env)
         if dec == "deny":
             return dec, why, {}
         subprocess.run(cmd, shell=True, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return dec, why, after(d, session)
+        return dec, why, after(d, session, env)
 
     REF = "docs/art/reference/powder"
 
@@ -748,6 +748,42 @@ try:
     rc, out, err = hook("gate", d2, session="bom")
     report(rc == 0 and out.strip() == "" and not err.strip(),
            "a config saved with a byte-order mark loads, and anim_globs: [] turns frame sheets off")
+
+    # --- unattended mode: no human to approve, so art needs no approval; the integrity guards stay ---
+    UN = {"ART_PIPELINE": "unattended"}
+    d = mkrepo(art=False, prod=True)
+    rc, out, _ = hook("start", d, env=UN)
+    report("UNATTENDED run" in json.loads(out)["hookSpecificOutput"]["additionalContext"],
+           "unattended: the session starts by saying nobody will approve or answer")
+    musk = {"file_path": os.path.join(d, "Assets/Anim/musk.anim")}
+    report(pre(d, "Write", musk, env=UN)[0] is None and pre(d, "Write", musk)[0] == "deny",
+           "unattended: an art write no human approved is allowed, and is still refused without the mode")
+    q = {"questions": [{"question": "Which hat?"}]}
+    dec, why = pre(d, "AskUserQuestion", q, env=UN)
+    report(dec == "deny" and "nobody is there to answer" in why and pre(d, "AskUserQuestion", q)[0] is None,
+           "unattended: AskUserQuestion is refused (nothing waits for a person) and still works in a normal session")
+    ok = all(pre(d, "Write", {"file_path": os.path.join(d, f)}, env=UN)[0] == "deny" for f in
+             ("docs/art/approvals/powder.json", ".art-pipeline.json", ".claude/settings.json"))
+    ok = ok and all(pre(d, "Bash", {"command": c}, env=UN)[0] == "deny" for c in
+                    ("python approve.py grant powder", "sed -i s/2/9/ .art-pipeline.json",
+                     "claude plugin disable art-pipeline"))
+    report(ok, "unattended: approvals, the config, settings, a grant command and plugin disable stay refused")
+    dec, why, o = bash(d, "mkdir -p Assets/Audio && echo boom > Assets/Audio/boom.wav", env=UN)
+    report(dec is None and not o and os.path.exists(os.path.join(d, "Assets/Audio/boom.wav")),
+           "unattended: art a command makes is not undone")
+    rc, g = gate(d, env=UN)
+    report(rc == 0 and "decision" not in g and "UNATTENDED run" in g.get("systemMessage", "")
+           and "Assets/Audio/boom.wav" in g["systemMessage"],
+           "unattended: the Stop gate lists art made without an approved spec instead of blocking")
+    write(d, "docs/art/approvals/powder.json", json.dumps({"id": "powder"}))
+    r = [gate(d, env=UN)[1] for _ in range(4)]
+    report(all(x.get("decision") == "block" and "not written by a human grant" in x.get("reason", "") for x in r),
+           "unattended: a forged approval still blocks the stop every time")
+    os.remove(os.path.join(d, "docs/art/approvals/powder.json"))
+    write(d, "art/hero.fbx", "m")
+    g = gate(d, env=UN)[1]
+    report(g.get("decision") == "block" and "art/hero.fbx" in g.get("reason", ""),
+           "unattended: a model with no review record still blocks the stop (the agent can do that alone)")
 
     # 18-20 run.sh
     env_np = {"PATH": "", "ART_PIPELINE_PYTHON": ""}

@@ -374,6 +374,13 @@ def check_frames(root, rel, asset, recs, seen_paths):
     return "fail", best
 
 
+def unattended():
+    """ART_PIPELINE=unattended, set by the human in the environment Claude Code starts in: nobody is
+    there to approve a spec, so art needs no approval - everything else (forged-approval and
+    protected-file guards, model and frame-sheet reviews) still applies."""
+    return os.environ.get("ART_PIPELINE", "").strip().lower() == "unattended"
+
+
 def evaluate(root, gitdir, session_id):
     """Shared by the Stop gate and `review.py status`. Returns (cfg, ledger, results, bad)
     where results = [(model, status, problems)]."""
@@ -405,7 +412,8 @@ def evaluate(root, gitdir, session_id):
             if not any(not pr for _, _, pr in cov):  # a spent budget does not undo what was built within it
                 why = [x for _, _, pr in cov for x in pr] or \
                       ["no human-approved spec covers this file: " + approval_hint(cfg)]
-                res.append((n, "fail", why))
+                # unattended: listed for the morning instead of blocking the stop
+                res.append((n, "unapproved" if unattended() else "fail", why))
     for sid, rec, pr in approvals:
         bp = builds_path(rec or {})
         if bp and os.path.isfile(bp):

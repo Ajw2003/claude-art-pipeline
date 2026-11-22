@@ -69,6 +69,15 @@ def event_start():
     path = artlib.ledger_path(gitdir, p.get("session_id"))
     # art already changed when the session starts is the person's, never undone by this session
     artlib.save_ledger(path, artlib.new_ledger(artlib.head_sha(root), artlib.changed_art(root, cfg)))
+    if artlib.unattended():
+        emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
+              "art-pipeline: UNATTENDED run (ART_PIPELINE=unattended). Nobody is there to approve or answer, so "
+              "art needs no approved spec and AskUserQuestion is refused: decide, prototype and keep going. Still "
+              "enforced: models need a review sheet you opened and a review record, animation needs frame sheets, "
+              "and approvals, .art-pipeline.json, the plugin settings and the ledger cannot be edited. Keep a log "
+              "in docs/art/UNATTENDED.md of every question you would have asked and the choice you took, and "
+              "commit it; the Stop gate lists the art made without an approved spec for the morning."}})
+        return 0
     if not artlib.tracked_has_art(root, cfg):
         return 0
     emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
@@ -118,6 +127,10 @@ def event_gate():
     forged = [m for m, st, _ in res if st == "forged"]
     waived = [m for m, st, _ in res if st == "waived"]
     notes = ["art-pipeline: " + pr[0] for m, st, pr in res if st == "timeout"]
+    unapproved = [m for m, st, _ in res if st == "unapproved"]
+    if unapproved:
+        notes.append("art-pipeline: UNATTENDED run - made without a human-approved spec, for review in the "
+                     "morning: " + ", ".join(unapproved))
     if waived:
         notes.append("art-pipeline: WAIVED review for: " + ", ".join(waived))
     path = artlib.ledger_path(gitdir, p.get("session_id"))
@@ -232,6 +245,9 @@ def event_pre():
             if why:
                 return deny(why)
         return 0
+    if tool == "AskUserQuestion" and artlib.unattended():
+        return deny("unattended run (ART_PIPELINE=unattended): nobody is there to answer. Pick the safest "
+                    "option yourself, put the question and your choice in your final report, and carry on.")
     if tool == "AskUserQuestion":
         info = artlib.repo_info(where(p))
     else:
@@ -271,7 +287,7 @@ def event_pre():
         return 0
     if _protected(cfg, rel):
         return deny("%s is changed only by the human (approvals come from AskUserQuestion or approve.py grant)." % rel)
-    if not artlib.is_production(rel, cfg):
+    if artlib.unattended() or not artlib.is_production(rel, cfg):
         return 0
     ok, why = artlib.ready(root, artlib.covering(rel, artlib.load_approvals(root, cfg, led)), led)
     if ok:
@@ -289,6 +305,8 @@ def bash_pre(root, gitdir, p, cmd):
             re.search(BASH_GUARDED, cmd) or cfg["approval_dir"].strip("/") in cmd):
         return ("%s, .art-pipeline.json, the plugin settings and the session ledger are changed only by "
                 "a human grant or the human; read them with Read, commit them with git." % cfg["approval_dir"])
+    if artlib.unattended():
+        return None   # no approval to check, no build budget to charge
     use = p.get("tool_use_id")
     if use and use == led.get("pre_use"):
         return None  # a second copy of the plugin (user and project scope) already allowed this call
@@ -403,7 +421,7 @@ def after_repo(root, gitdir, p):
             undone.append((rel, quarantine(root, gitdir, led["start"], rel, stamp), "no human grant wrote it"))
     t0 = led.get("t0") or 0
     outputs = {}
-    for rel, h in artlib.changed_art(root, cfg).items():
+    for rel, h in ({} if artlib.unattended() else artlib.changed_art(root, cfg)).items():
         if led["known"].get(rel) == h or os.path.getmtime(os.path.join(root, rel)) < t0 - 1:
             continue  # unchanged since accepted, or changed outside this call (the person's own edit)
         good = [(rec, it) for rec, it, pr in artlib.covering(rel, approvals) if not pr]
