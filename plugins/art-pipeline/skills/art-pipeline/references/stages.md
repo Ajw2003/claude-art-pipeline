@@ -13,7 +13,7 @@ elsewhere in the same checkout.
 
 ## 1. Brief and style bible
 
-Before anything is drawn. Copy `style-bible-template.md` to `docs/art/BRIEF.md` and fill it in
+Before anything is drawn. Copy `../../art-brief-spec/references/style-bible-template.md` to `docs/art/BRIEF.md` and fill it in
 from the project's pitch, mood board and scale doc. If the project has no scale doc, write one
 first: one standard figure (a 1.80 m human is a good default) that every room, door, prop and
 creature is measured against.
@@ -30,7 +30,7 @@ pipeline's own concept sheets and renders are never reference. If the reference 
 from this machine, ask the human for it or for the host to be allowed; do not reason out what it
 would show.
 
-**The spec** (`docs/art/specs/<id>.json`, from `spec-template.md`) covers one item or a batch of
+**The spec** (`docs/art/specs/<id>.json`, from `../../art-brief-spec/references/spec-template.md`) covers one item or a batch of
 items, and for each part of each item names the reference, the key poses taken from it, what the
 human will check, every path the work writes, and the build budget. `approve.py check <id>`
 validates it, writes the review sheet the human reviews (the same layout every time), and prints

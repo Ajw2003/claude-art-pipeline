@@ -57,8 +57,8 @@ Stage 3 (the spec) is now part of stage 2: reference, concept and spec go to the
 | Stage | Produces | Gate (what to look for) |
 |---|---|---|
 | 0. Protect | an autosave or frequent commits on your own branch | — |
-| 1. Brief + style bible | `docs/art/BRIEF.md` from `references/style-bible-template.md`: register, palette, scale, budgets, sheet conventions | the user approves it; nothing is drawn before |
-| 2. Reference + concept + spec | real-world reference saved under `docs/art/reference/<id>/`; a concept sheet drawn by code where it helps; `docs/art/specs/<id>.json` from `references/spec-template.md` | `approve.py check <id>` passes, then **the human approves** through AskUserQuestion; nothing is built before |
+| 1. Brief + style bible | `docs/art/BRIEF.md` from `../art-brief-spec/references/style-bible-template.md`: register, palette, scale, budgets, sheet conventions | the user approves it; nothing is drawn before |
+| 2. Reference + concept + spec | real-world reference saved under `docs/art/reference/<id>/`; a concept sheet drawn by code where it helps; `docs/art/specs/<id>.json` from `../art-brief-spec/references/spec-template.md` | `approve.py check <id>` passes, then **the human approves** through AskUserQuestion; nothing is built before |
 | 3. Asset data | the project's own data entry per asset: dimensions, materials with hex, build bullets with real sizes, budget, rig and clip list | numbers on the sheet equal the numbers in the data and the approved spec |
 | 4. Model | mesh, baked textures, FBX/glTF/.blend, built by a blueprint script; a validator | review sheet: concept left, renders right (¾, front, side, wireframe); silhouette, proportion, colour, budget on the caption |
 | 5. Rig | armature with engine-standard bone names, skin weights, a test pose | posed views bend without tearing; props follow the hands; nothing below the floor |
@@ -116,7 +116,7 @@ A project without Unity or Blender sets
    one. Extend what is there; when nothing is, `references/stages.md` gives the shape.
 2. **Find reference and get the spec approved before making anything.** Save real-world reference
    (photographs, period plates, video frames, mocap, recordings) under `docs/art/reference/<id>/`,
-   write `docs/art/specs/<id>.json` from `references/spec-template.md`, then:
+   write `docs/art/specs/<id>.json` from `../art-brief-spec/references/spec-template.md`, then:
 
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/approve.py" check <id>
@@ -205,8 +205,8 @@ workers at once on one checkout, and each stages only its own paths.
 ## References
 
 - `references/stages.md`: each stage in full, inputs, outputs, commands, gates.
-- `references/style-bible-template.md`: the brief a project fills in before anything is drawn.
-- `references/spec-template.md`: the per-asset spec a human approves, and what counts as reference.
+- `../art-brief-spec/references/style-bible-template.md`: the brief a project fills in before anything is drawn.
+- `../art-brief-spec/references/spec-template.md`: the per-asset spec a human approves, and what counts as reference.
 - `references/tooling-and-traps.md`: Blender as a module, the blueprint pattern, rigging,
   AnimForge-style clips, engine import, and the traps that already cost a day.
 - `examples/anim-review/`: the frame-sheet review that made the step mandatory, with what it found.

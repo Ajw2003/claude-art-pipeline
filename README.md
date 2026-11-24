@@ -34,7 +34,7 @@ fits. The renders it uses need Blender's Python module; the skill's
 | `PostToolUse` (AskUserQuestion) | `answered` | When the human answers "Approve" to a question carrying a spec's token, writes `docs/art/approvals/<id>.json` (hashes of the spec, its sheet and every reference) and records the grant in the session ledger. |
 
 A spec is `docs/art/specs/<id>.json`
-(`plugins/art-pipeline/skills/art-pipeline/references/spec-template.md`): one or more items, each
+(`plugins/art-pipeline/skills/art-brief-spec/references/spec-template.md`): one or more items, each
 with parts (model, animation, texture, sound...) and real-world reference per part.
 `approve.py check <id>` validates it, writes the review sheet `docs/art/specs/<id>.sheet.html`
 (same layout every time, reference shown large) and prints the question to ask;
