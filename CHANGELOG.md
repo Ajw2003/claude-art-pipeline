@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **The skill split is proposed, and the angle-review skill is merged in.** `angle-review-sheets` (branch
+  `AjsAgent/angle-review-skill`) joins the default branch's `frame-sheet-compare`. `docs/plans/split-art-pipeline-proposal.html`
+  lays out the cut of what remains in `art-pipeline` (art-brief-spec, model-build, rig-and-clips, engine-import,
+  reviewer-agent) and asks for three decisions. No skill files have moved yet.
+
 ## 0.10.0 - 2026-11-24
 
 - **`frame-sheet-compare` is its own skill.** The Unity/Blender frame-sheet renderers, `frame_camera.txt` and
