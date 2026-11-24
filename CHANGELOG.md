@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Finding: reviewers disagree on a loose objective.** The real `art-reviewer` graded "the render matches the concept's silhouette and hat" FAIL twice, and a stand-in reading the same file graded it PASS on the same sheet. Objectives given to a reviewer should be measurable (issue #13). Guidance not yet added to the `reviewer-agent` skill.
+
 - **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13). A second and third trial still added process notes, but a check showed the running agent did not contain the new sentences (agent files are read when the session starts), so those trials tested the old wording. The verdict line is now stated to end the reply. A stand-in run (a general-purpose agent told to follow the file text from disk) obeyed the new rule: no extra sections. It is not the real agent, so a new session must still try that.
 
 ## 0.11.0 - 2026-11-24
