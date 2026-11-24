@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+- **Why edits to the agent did not show up.** An installed plugin runs from a cached copy made at install time, not from the repo, so a repo edit reaches the agent only after `claude plugin update art-pipeline@claude-art-pipeline` and a restart (found in issue #13; the cache held 0.10.0 until the update copied 0.11.0).
+
+- **The `reviewer-agent` skill is sharper.** A reviewer's objectives are now the spec's `check` strings, copied word for word, so two reviewers judge the same thing; the skill also lists the reviewer's four-part reply and says a `VERDICT: fail` is recorded as `--verdict fail` (issue #13).
+
+- **Finding: reviewers disagree on a loose objective.** The real `art-reviewer` graded "the render matches the concept's silhouette and hat" FAIL twice, and a stand-in reading the same file graded it PASS on the same sheet. Objectives given to a reviewer should be measurable (issue #13). The `reviewer-agent` skill now says the objectives are the spec's `check` strings copied word for word, lists the reviewer's four-part reply, and says to record `--verdict fail` when the reviewer's last line is `VERDICT: fail`.
+
+- **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13). A second and third trial still added process notes, but a check showed the running agent did not contain the new sentences (agent files are read when the session starts), so those trials tested the old wording. The verdict line is now stated to end the reply. A stand-in run (a general-purpose agent told to follow the file text from disk) obeyed the new rule: no extra sections. It is not the real agent, so a new session must still try that.
+
+## 0.11.0 - 2026-11-24
+
+- **`--reviewer NAME` on `review.py record`, `clip` and `frames` (issue #13).** The record stores the reviewer
+  and the sha256 of each sheet; an empty name is refused. For a record with a reviewer the Stop gate no longer
+  asks that the sheet was opened (Read) this session, but still needs a pass verdict, a record newer than the
+  change, an existing sheet, and a sheet whose current sha256 equals the recorded one (a record with no
+  recorded hash is refused too). A record without a reviewer keeps every check. `review.py status` prints
+  `[reviewed by NAME]`. Four new `verify.py` checks: 113 of 113.
+
+- **`art-pipeline` is a front door (issue #14).** `skills/art-pipeline/SKILL.md` shrank from 212 lines to
+  about 60: rule one, rule two, the stage map and a pointer to every stage skill. `references/stages.md` and
+  `references/tooling-and-traps.md` are deleted; every part of them already lives in `art-brief-spec`,
+  `model-build`, `rig-and-clips` and `engine-import`. Plugin version raised to 0.11.0.
+
+- **`art-reviewer` agent for art and visuals** (`agents/art-reviewer.md`, issue #13). A copy of the house-rules
+  `reviewer`, kept read-only and findings-only, retuned for pictures: modes `sheet`, `frames`, `angles` and
+  `motion`; opens every image beside its reference; one `O<n>: PASS|FAIL` line per objective in the shape the
+  visual loop uses; `NOT SEEN` is never a pass. Loads in a new session. The `reviewer-agent` skill now spawns it.
+
+- **art-pipeline is being split into single-purpose skills (issue #8).** Four new skills each work alone:
+  `art-brief-spec` (stages 0 to 3 and 8), `model-build` (stage 4), `rig-and-clips` (stages 5 and 6) and
+  `engine-import` (stage 7, a project-agnostic Unity importer pattern). `angle-review-sheets` is merged in beside
+  `frame-sheet-compare`. Files moved with `git mv`; links fixed; `verify.py` stays at 109 of 109. `art-pipeline`
+  still holds the moved text until it is slimmed to a front door. Plan: `docs/plans/split-art-pipeline-proposal.html`.
+
 ## 0.10.0 - 2026-11-24
 
 - **`frame-sheet-compare` is its own skill.** The Unity/Blender frame-sheet renderers, `frame_camera.txt` and

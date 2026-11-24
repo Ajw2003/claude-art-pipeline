@@ -1,4 +1,4 @@
-# The stages, in full
+# Stages 0, 1, 2, 3 and 8, in full
 
 Paths below are the defaults; a project that already has its own layout keeps it and says so in
 its brief. Every stage's outputs are committed, sheets and renders included: they are the record of
@@ -71,86 +71,6 @@ anything until the whole set passes.
 
 **Gate:** the sheet and the JSON agree. A worker who writes the spec after drawing can contradict
 the drawing.
-
-## 4. Model
-
-A blueprint per asset, in code: a list of parts (lathe, loft, sweep, tube, prism, box…) each with
-a material family and, for rigged assets, a bone. The forge builds the mesh, bevels, unwraps, bakes
-one texture set, and exports FBX (engine axes), glTF and `.blend`. A validator checks: closed and
-manifold, consistent winding, UVs in 0–1, one material slot, identity transforms, grounded, under
-the triangle budget, the height or bbox within tolerance of the spec, and (rigged) every vertex
-weighted, at most 4 influences, weights summing to 1.
-
-Then the review sheet: the concept on the left; three-quarter, front (beside the reference human),
-side and wireframe renders on the right; a caption with triangles against budget, size against
-spec, bones. `scripts/render_views.py` and `scripts/review_sheet.py` make one for any model when
-the project has no renderer of its own.
-
-**Gate:** open the sheet. Silhouette and proportion against the concept; colours; key details
-present; the caption's numbers. At least one improvement pass. A real conflict between the spec's
-size line and its build notes is recorded as an override with the reason; the model is never
-shrunk to pass.
-
-## 5. Rig and pose
-
-A figure library gives bones the engine's standard rig expects (Unity Humanoid names with `.L`/`.R`
-suffixes), heat weighting with per-part rules (rigid props, a skirt that hands weight to the thighs,
-parts limited to named bones), and extra bones for anything that must come off or swing (a hat, a
-lantern ring). The review sheet adds a posed three-quarter and front view: an arm raised, the head
-turned, a knee lifted.
-
-**Gate:** the posed views bend without tearing, nothing passes through the body, props follow the
-hands.
-
-## 6. Clips
-
-Motion comes from reference, never from reasoning about what a body would do:
-
-- **Best: a motion-capture take**, retargeted. The CMU Graphics Lab Motion Capture Database is free
-  to use; Blender imports BVH (`bpy.ops.import_anim.bvh`). Retarget each bone's turn from its own
-  rest, so models of other proportions keep their own posture.
-- **Otherwise: key poses taken from reference frames** (video or period plates), one key per frame
-  the spec's `key_poses` names, compared side by side with that frame. The timing comes from the
-  video, not from a guess.
-- If a pose will not come right within the build budget, stop and ask: the usual cause is missing
-  or wrong reference, or a model whose props cannot do the action. Tuning a solver by argument is
-  how one session spent its whole budget on a single musket aim.
-
-Clips are built by code on one shared reference skeleton, so one clip retargets to every humanoid:
-
-- named poses (bone rotations), clips as timed pose keys with easing, anticipation and overshoot,
-  each pose taken from a reference frame;
-- locomotion from a parametric gait (stride, cadence, bob) matched to the in-game speed, so feet do
-  not slide; in place, no root motion, when the engine moves the body;
-- foot IK to the floor while grounded; events (footstep, hit, release) at normalized times;
-- export per family (base, weapon, signature) as animation-only FBX; re-import to verify every take
-  and frame count; write a manifest with loop flags, events and metrics.
-
-Review per clip: frame sheets of every clip in Unity and in Blender with the rest-pose comparison
-(SKILL.md, "Frame sheets"; the Stop gate requires them), 8 stills on the actual target model with
-the matching reference frames beside them, a foot-contact trace for locomotion, an MP4.
-
-**Gate:** both frame sheets opened and recorded with `review.py frames`, no rest-pose mismatch,
-props held as designed in every clip (a weapon on a hand bone follows an empty-handed swing),
-each key pose matches its reference frame side by side, feet do not slide (metric under
-1 cm), nothing below the floor, the pose reads as the action at a glance, and a one-shot ends where the next state expects it (a death ends lying still).
-
-## 7. Engine
-
-Everything set in code, nothing in the Inspector:
-
-- an import postprocessor: rig type and bone map by path, loop flags per clip, materials built from
-  the baked maps, data textures imported linear;
-- an editor menu that generates the animator (blend trees by speed, layers with masks) and installs
-  the model on the prefab;
-- a runtime driver that only sets animator parameters, reading what the body is doing; on a
-  networked game, anything the movement does not show (crouch, cast) is synced by the owner;
-- tests: classification, loop flags against the manifest, driver parameters from inputs.
-
-**Gate:** frame sheets of the prefab with the controller the game uses, rendered again after any
-import or controller change, and a capture in the engine. If this machine cannot run the engine, the work is labelled
-UNTESTED and the user gets the exact menu item and what they should see.
-
 ## 8. Docs agree, then commit
 
 Update the project's docs in the tier that changed (state, today, the system doc for the asset

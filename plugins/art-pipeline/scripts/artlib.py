@@ -270,6 +270,33 @@ def load_records(root, cfg, suffix=".review.json"):
     return recs, bad
 
 
+def file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def reviewer_of(r):
+    v = r.get("reviewer")
+    return v.strip() if isinstance(v, str) and v.strip() else ""
+
+
+def opened_problem(r, key, sheet, sabs, seen_paths, what):
+    """The 'opened this session' problem for a sheet, or None. A record with a reviewer skips the Read requirement but
+    must carry the sheet's sha256 (<key>_sha256), and the sheet must still match it."""
+    who = reviewer_of(r)
+    if not who:
+        return "%s was not opened (Read) this session" % what if norm(sabs) not in seen_paths else None
+    want = r.get(key + "_sha256")
+    if not isinstance(want, str) or not want:
+        return "%s: reviewer %s's record has no %s_sha256" % (what, who, key)
+    if file_sha256(sabs) != want:
+        return "%s changed since reviewer %s's verdict" % (what, who)
+    return None
+
+
 def check_model(root, model, recs, seen_paths, cfg):
     """('ok'|'waived'|'fail', [problems]). Passes if any record for the model is satisfied."""
     mine = [r for r in recs if r.get("model") == model]
@@ -293,8 +320,9 @@ def check_model(root, model, recs, seen_paths, cfg):
         else:
             if os.path.getmtime(sheet_abs) < os.path.getmtime(os.path.join(root, model)):
                 probs.append("sheet %s is older than the model - re-render it" % sheet)
-            if norm(sheet_abs) not in seen_paths:
-                probs.append("sheet %s was not opened (Read) this session" % sheet)
+            op = opened_problem(r, "sheet", sheet, sheet_abs, seen_paths, "sheet %s" % sheet)
+            if op:
+                probs.append(op)
         if not probs:
             return ("waived" if verdict == "waived" else "ok"), []
         last = probs
@@ -364,8 +392,10 @@ def check_frames(root, rel, asset, recs, seen_paths):
                 probs.append("%s %r does not exist" % (what, sh))
             elif os.path.getmtime(sabs) < changed:
                 probs.append("%s %s is older than %s: render it again" % (what, sh, rel))
-            elif norm(sabs) not in seen_paths:
-                probs.append("%s %s was not opened (Read) this session" % (what, sh))
+            else:
+                op = opened_problem(r, k, sh, sabs, seen_paths, "%s %s" % (what, sh))
+                if op:
+                    probs.append(op)
         probs += rest_pose_problems(root, r)
         if not probs:
             return "ok", []
@@ -901,8 +931,9 @@ def clip_review_state(root, cfg, led, item, gated_cmd):
         else:
             if os.path.getmtime(sabs) < newest:
                 probs.append("sheet %s is older than %s's last source edit: render and review again" % (sheet, item["name"]))
-            if norm(sabs) not in seen:
-                probs.append("sheet %s was not opened (Read) this session" % sheet)
+            op = opened_problem(r, "sheet", sheet, sabs, seen, "sheet %s" % sheet)
+            if op:
+                probs.append(op)
         if not probs:
             return True, []
         if last is None or len(probs) < len(last):
