@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13). A second trial still added a process-notes block after the verdict, so the verdict line is now stated to end the reply.
+- **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13). A second and third trial still added process notes, but a check showed the running agent did not contain the new sentences (agent files are read when the session starts), so those trials tested the old wording. The verdict line is now stated to end the reply. Neither change has been tried yet; that needs a new session.
 
 ## 0.11.0 - 2026-11-24
 
