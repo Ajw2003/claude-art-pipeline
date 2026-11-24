@@ -825,7 +825,7 @@ try:
     report(rc == 0 and "art-pipeline:" in out, "run.sh start with a real interpreter reaches hook.py")
 
     # the frame-sheet comparison: one camera for both renderers, and compare scores what it lays side by side
-    sdir = os.path.join(HERE, "..", "skills", "art-pipeline", "scripts")
+    sdir = os.path.join(HERE, "..", "skills", "frame-sheet-compare", "scripts")
     texts = {f: open(os.path.join(sdir, f), encoding="utf-8").read()
              for f in ("unity_frame_sheets.sh", "blender_frame_sheets.py")}
     report(all("frame_camera.txt" in t for t in texts.values()) and os.path.isfile(os.path.join(sdir, "frame_camera.txt")),

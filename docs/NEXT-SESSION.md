@@ -6,8 +6,8 @@ aj asked that the next session picking up art-pipeline changes do these two thin
    holds the brief, spec and approval steps, model building, rigging, clip authoring, engine import and the
    Unity/Blender frame-sheet comparison. Each should be its own skill that can be used alone; the
    `angle-review-sheets` skill on branch `AjsAgent/angle-review-skill` is already one such piece.
-   The matched frame-sheet comparison (PR #7: `frame_camera.txt`, `blender_frame_sheets.py --match`,
-   `frame_sheet_pages.py compare`) is a natural standalone skill too.
+   Done: the matched Unity/Blender frame-sheet comparison is now the `frame-sheet-compare` skill
+   (0.10.0, aj asked for it 2026-11-24).
 2. **Reviews by a separate agent.** Every review (model sheets, frame sheets, the compare pages) is done by
    a separate reviewer agent with fresh context, as the house-rules design loop will soon do, so the
    verdict is unbiased and judged against stated objectives, not by the agent that made the art.

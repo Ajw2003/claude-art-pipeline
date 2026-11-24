@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 - 2026-11-24
+
+- **`frame-sheet-compare` is its own skill.** The Unity/Blender frame-sheet renderers, `frame_camera.txt` and
+  `frame_sheet_pages.py` moved from `skills/art-pipeline/scripts/` to `skills/frame-sheet-compare/scripts/`, with
+  their own SKILL.md (steps, why the comparison is controlled, the renderer traps). The art-pipeline skill and the
+  Stop gate's hint point there; the gate itself is unchanged. First step of splitting art-pipeline into one skill
+  per operation (docs/NEXT-SESSION.md).
+
 ## 0.9.0 - 2026-11-24
 
 From PlunderSpell's Generic-rig check, where the Unity and Blender frame sheets of the same clip file

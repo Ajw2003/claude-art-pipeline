@@ -10,7 +10,7 @@ Unity, Edit mode, 27 entries (the Crusader's clip file on its own skeleton, his 
 clips, and every prefab under `Assets/_Project/Prefabs/Enemies`), about 25 seconds:
 
 ```bash
-bash plugins/art-pipeline/skills/art-pipeline/scripts/unity_frame_sheets.sh --project <PlunderSpell> \
+bash plugins/art-pipeline/skills/frame-sheet-compare/scripts/unity_frame_sheets.sh --project <PlunderSpell> \
      --out <out> --gap Hand.L Hand.R --dir Greatsword \
      Assets/Models/ArtBible/Animations/Crusader_Signature.fbx \
      "Assets/_Project/Prefabs/Enemies/HighMedieval/CrusaderBoss.prefab=Assets/Models/ArtBible/Animations/Crusader_Signature.fbx" \
@@ -21,13 +21,13 @@ Blender 5.2, once on the committed clip file (`CrusaderBoss`), once on the re-ex
 (`CrusaderBoss_reexport`), about 12 seconds each:
 
 ```bash
-blender -b --factory-startup -P plugins/art-pipeline/skills/art-pipeline/scripts/blender_frame_sheets.py -- \
+blender -b --factory-startup -P plugins/art-pipeline/skills/frame-sheet-compare/scripts/blender_frame_sheets.py -- \
      --model <PlunderSpell>/Assets/Models/ArtBible/Enemies/High/CrusaderBoss/CrusaderBoss.fbx \
      --clips <PlunderSpell>/Assets/Models/ArtBible/Animations/Crusader_Signature.fbx \
      --out <out> --name CrusaderBoss --gap Hand.L Hand.R --dir Greatsword
-python plugins/art-pipeline/skills/art-pipeline/scripts/frame_sheet_pages.py label <out>
-python plugins/art-pipeline/skills/art-pipeline/scripts/frame_sheet_pages.py pages <out>
-python plugins/art-pipeline/skills/art-pipeline/scripts/frame_sheet_pages.py probes <out>
+python plugins/art-pipeline/skills/frame-sheet-compare/scripts/frame_sheet_pages.py label <out>
+python plugins/art-pipeline/skills/frame-sheet-compare/scripts/frame_sheet_pages.py pages <out>
+python plugins/art-pipeline/skills/frame-sheet-compare/scripts/frame_sheet_pages.py probes <out>
 ```
 
 What it shows:
