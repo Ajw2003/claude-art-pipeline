@@ -20,6 +20,14 @@ Name its mode in the prompt: `sheet`, `frames`, `angles` or `motion`. Give it on
 
 Never give it the maker's own claims, notes or reasoning.
 
+**Objectives are the spec's `check` strings, copied word for word, one `O<n>` each** (the spec template
+allows 1 to 3 per part). Do not paraphrase them, merge them, or invent a broader one such as "matches the
+concept". Two reviewers given "matches the concept's silhouette and hat" returned FAIL and PASS on the same
+sheet; a check that names what to compare ("the hat tip curls to the viewer's right in the front view",
+"the band shows the name", "petard size against the 1.80 m figure") gives the same verdict every time. If
+an approved `check` is too loose to judge, say so to the human and ask for a sharper one; do not tighten
+it yourself, because the human approved those words.
+
 ## 2. What the reviewer returns
 
 - a verdict, `pass` or `fail`;
