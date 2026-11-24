@@ -1,20 +1,24 @@
 # Handoff: AjsAgent/admiring-mccarthy-n6sboz
 
 ## What the work is for
-Split the `art-pipeline` skill into separate skills that each work alone, and make every review a fresh-context reviewer agent's verdict. The direction is in `docs/NEXT-SESSION.md`.
+Split the `art-pipeline` skill into separate skills that each work alone, and make every review a fresh-context reviewer agent's verdict. The direction is in `docs/NEXT-SESSION.md`. aj approved the plan with: A keep `art-pipeline` as a front door, B a `--reviewer` flag, C `engine-import` as a generalised pattern.
 
 ## Where it stands
 - The default branch is `AjsAgent/standalone`. It already has `frame-sheet-compare` as its own skill (PR #7).
 - This branch adds the merged `angle-review-sheets` skill and the proposal page `docs/plans/split-art-pipeline-proposal.html`.
-- Nothing has been moved out of `skills/art-pipeline/` yet. Only two files point at skill folders (`scripts/artlib.py` and `scripts/verify.py`), and both already point at `frame-sheet-compare`.
+- Done: `art-brief-spec` (#9, commit `1822c6a`), `model-build` (#10) and `engine-import` (#12) (both inside autosave commits, so no separate commit), `rig-and-clips` (#11, commit `1d71ec5`). Six broken links were fixed in `7714249`.
+- In progress: #13, the `reviewer-agent` skill and the `--reviewer` flag on `review.py record`, `clip` and `frames`. A builder is working on it.
+- Not started: #14, slimming `art-pipeline` to a front door, raising the plugin version and updating the docs tiers. `stages.md` and `tooling-and-traps.md` still hold the moved text until then.
 
 ## The next step
-Wait for aj's approval and three answers on the proposal page: A (keep `art-pipeline` as a front door), B (how the Stop gate counts a reviewer agent's look), C (where the Blender-to-Unity import work lives). Then move files one skill per commit, running `verify.py` after each.
+When #13 lands, do #14, then run `verify.py`, quote the result and push. aj has also been asked whether to move the scratch clone `/home/user/plunderspell` to `/home/user/_to_delete/`, because the Stop gate flags an approval file that clone's checkout wrote.
 
 ## What is unverified
-- `verify.py` has not been run on this branch.
+- `verify.py` passes 109 of 109 on the commits before #13. It has not been run on the finished split.
+- The `engine-import` C# template was never compiled: no Unity, `dotnet`, `mcs` or `csc` is on this machine, and a compile against hand-written stubs would prove nothing.
+- `--reviewer` is an honesty claim the gate cannot prove; the recorded sheet hash ties the verdict to one image.
 - No Blender-to-Unity import code is on this repo's branches. A code search of `Ajw2003/PlunderSpell` (attached read-only) found `ArtBibleModelImporter.cs`, `GroundsImportSettings.cs` and `CastleMeshImportSettings.cs` under `Assets/_Project/Scripts/Editor/`. All three files were fetched in full through the GitHub contents API (483, 85 and 32 lines) and skimmed for structure; they have not been studied line by line. All three are Unity `AssetPostprocessor` classes tied to PlunderSpell's own folders and namespace (`Assets/Models/ArtBible/`, `Plunderspell.EditorTools`): rig type per model, URP materials from baked maps, read/write meshes, axis conversion. An engine-import skill would need these generalised, because the `art-pipeline` skill says to stay project-agnostic and never attach another repository for examples. The local clone of that repo was still downloading (2.9 GB so far) and is not needed for the plan.
 - The older `verify.py` failures on aj's Windows machine (16 checks) are unconfirmed on this machine.
 
 ## The issue numbers
-None created yet. The plan is over three steps, so parent and child issues are needed before source files are edited.
+Parent #8. Children: #9 art-brief-spec, #10 model-build, #11 rig-and-clips, #12 engine-import, #13 reviewer-agent and flag, #14 front door, version and changelog.
