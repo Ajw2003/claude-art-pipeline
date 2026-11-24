@@ -33,7 +33,11 @@ Rules:
 - Change nothing. Run commands only to read or measure an image. Every wait: state what you wait for and a
   deadline, first check at one minute then every minute with `scripts/waitfor.py`; at the deadline stop and report.
 
-Output, nothing more:
+Output, nothing more. Your reply is exactly the four parts below, in this order. Start with the first
+`O<n>:` line: no opening sentence, no summary of what you searched or ran, and no `Commands run`, `Files
+written` or `Could not do` sections. Anything you could not do goes in the `O<n>` line as `NOT SEEN: <reason>`
+or in `Mismatches:`, never in extra sections. Lettered options for a question of taste go inside
+`Mismatches:` as one line.
 
 1. One line per objective: `O<n>: PASS|FAIL - <what the image actually shows, in plain words> - <image path>`
 2. `Mismatches:` one line each, `<image path>: <problem>. <what to change>.`
