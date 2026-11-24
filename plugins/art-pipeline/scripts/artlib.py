@@ -270,6 +270,33 @@ def load_records(root, cfg, suffix=".review.json"):
     return recs, bad
 
 
+def file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def reviewer_of(r):
+    v = r.get("reviewer")
+    return v.strip() if isinstance(v, str) and v.strip() else ""
+
+
+def opened_problem(r, key, sheet, sabs, seen_paths, what):
+    """The 'opened this session' problem for a sheet, or None. A record with a reviewer skips the Read requirement but
+    must carry the sheet's sha256 (<key>_sha256), and the sheet must still match it."""
+    who = reviewer_of(r)
+    if not who:
+        return "%s was not opened (Read) this session" % what if norm(sabs) not in seen_paths else None
+    want = r.get(key + "_sha256")
+    if not isinstance(want, str) or not want:
+        return "%s: reviewer %s's record has no %s_sha256" % (what, who, key)
+    if file_sha256(sabs) != want:
+        return "%s changed since reviewer %s's verdict" % (what, who)
+    return None
+
+
 def check_model(root, model, recs, seen_paths, cfg):
     """('ok'|'waived'|'fail', [problems]). Passes if any record for the model is satisfied."""
     mine = [r for r in recs if r.get("model") == model]
