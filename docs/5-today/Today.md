@@ -10,3 +10,6 @@
 - A second builder is adding the `reviewer-agent` skill and the `--reviewer` flag (#13).
 - aj asked for the house-rules reviewer to be extended into a copy tuned for art and visuals. Added `plugins/art-pipeline/agents/art-reviewer.md` (modes sheet, frames, angles, motion) and pointed the `reviewer-agent` skill at it. It loads in a new session, so it has not been spawned yet.
 - The `engine-import` C# template has not been compiled: no Unity, `dotnet`, `mcs` or `csc` is on this machine.
+- Slimmed `art-pipeline` to a front door (#14) and deleted `references/stages.md` and `references/tooling-and-traps.md`. `verify.py` still passes 109 of 109. The `plugin.json` version bump to 0.11.0 is refused until code edits open.
+- Tried to spawn `art-pipeline:art-reviewer`: it does not exist in this session, because only the `house-rules` plugin is installed here, so the agent is still unexercised.
+- The `--reviewer` flag (#13 code) still waits for aj to type `Build plan approved: reviewer-agent`.

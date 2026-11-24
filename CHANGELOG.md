@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`art-pipeline` is a front door (issue #14).** `skills/art-pipeline/SKILL.md` shrank from 212 lines to
+  about 60: rule one, rule two, the stage map and a pointer to every stage skill. `references/stages.md` and
+  `references/tooling-and-traps.md` are deleted; every part of them already lives in `art-brief-spec`,
+  `model-build`, `rig-and-clips` and `engine-import`. The version in `plugin.json` is still 0.10.0 and
+  becomes 0.11.0 when code edits open. The `--reviewer` flag (issue #13) also waits for that.
+
 - **`art-reviewer` agent for art and visuals** (`agents/art-reviewer.md`, issue #13). A copy of the house-rules
   `reviewer`, kept read-only and findings-only, retuned for pictures: modes `sheet`, `frames`, `angles` and
   `motion`; opens every image beside its reference; one `O<n>: PASS|FAIL` line per objective in the shape the

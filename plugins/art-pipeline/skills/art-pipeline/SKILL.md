@@ -34,146 +34,34 @@ holds the two rules every stage obeys. Unattended runs (no human to approve) are
           → 7 engine import → FRAME SHEETS again → LOOK in engine → 8 commit
 ```
 
-Stage 3 (the spec) is now part of stage 2: reference, concept and spec go to the human together.
+Stage 3 (asset data) is part of stage 2: reference, concept and spec go to the human together.
 
-| Stage | Produces | Gate (what to look for) |
+| Stages | Skill | Use it for |
 |---|---|---|
-| 0. Protect | an autosave or frequent commits on your own branch | — |
-| 1. Brief + style bible | `docs/art/BRIEF.md` from `../art-brief-spec/references/style-bible-template.md`: register, palette, scale, budgets, sheet conventions | the user approves it; nothing is drawn before |
-| 2. Reference + concept + spec | real-world reference saved under `docs/art/reference/<id>/`; a concept sheet drawn by code where it helps; `docs/art/specs/<id>.json` from `../art-brief-spec/references/spec-template.md` | `approve.py check <id>` passes, then **the human approves** through AskUserQuestion; nothing is built before |
-| 3. Asset data | the project's own data entry per asset: dimensions, materials with hex, build bullets with real sizes, budget, rig and clip list | numbers on the sheet equal the numbers in the data and the approved spec |
-| 4. Model | mesh, baked textures, FBX/glTF/.blend, built by a blueprint script; a validator | review sheet: concept left, renders right (¾, front, side, wireframe); silhouette, proportion, colour, budget on the caption |
-| 5. Rig | armature with engine-standard bone names, skin weights, a test pose | posed views bend without tearing; props follow the hands; nothing below the floor |
-| 6. Clips | motion from reference: a mocap take retargeted, or key poses taken from reference frames; in-place clips exported per family; metrics (foot slide, lowest point, events) | **frame sheets of every clip in Unity and in Blender, opened, and a clean rest-pose comparison** (below); 8 stills per clip on the actual model beside the reference frames, plus an MP4; feet do not slide; each key pose matches its reference |
-| 7. Engine | importer rules in code (rig type, loop flags, materials), a generated animator, a driver script | **frame sheets again**, of the prefab as the game plays it; a screenshot or capture in the engine; the user checks what this machine cannot run |
-| 8. Commit | everything above, including every sheet and render | `git status` clean; docs tier updated |
+| 0 to 3, 8 | `../art-brief-spec/SKILL.md` | protect the work, brief, reference, spec and approval, build budget, docs agree, commit; unattended runs |
+| 4 | `../model-build/SKILL.md` | Blender as a Python module, blueprints, the review sheet, the look |
+| 5, 6 | `../rig-and-clips/SKILL.md` | rig, pose test, clips from reference, the mandatory frame sheets |
+| 7 | `../engine-import/SKILL.md` | the Unity importer pattern, generated animator, the check in the engine |
 
-Full detail per stage, with commands: `references/stages.md`.
+Helpers any stage calls:
 
-## Frame sheets: every clip, in Unity and in Blender (mandatory)
+| Skill | Use it for |
+|---|---|
+| `../frame-sheet-compare/SKILL.md` | the same clip rendered in Unity and Blender under one camera, then compared |
+| `../angle-review-sheets/SKILL.md` | review sheets from fixed angles |
+| `../reviewer-agent/SKILL.md` | a fresh-context `art-reviewer` agent judges a sheet and its verdict is recorded |
 
-Any stage that makes or changes a clip, a controller or a clip's import settings (stage 6 and stage
-7) ends with **frame sheets of every clip, rendered twice**: once in the engine on the model as the
-game uses it, once in Blender on the model's own armature. Each sheet has the rest pose on top and a
-row per clip at five evenly spaced moments, from a three-quarter front view and a side view. The
-Stop gate refuses to pass while a changed clip file (`*.anim`, `*.bvh`, `*@*.fbx`, an FBX under an
-`animations/`, `anims/` or `clips/` folder), controller (`*.controller`, `*.overrideController`) or
-its `.meta` has no record pointing at both sheets, both newer than the change and both opened with
-Read this session.
+## Where to start
 
-Render and compare them with the **frame-sheet-compare** skill (`../frame-sheet-compare/SKILL.md`):
-`unity_frame_sheets.sh`, then `blender_frame_sheets.py --match` (which also writes `<name>_rest.json`),
-then `frame_sheet_pages.py label` and `compare`. Both renderers read one camera, light and sampling
-file, so the two sheets are a controlled comparison, and a failing row means the engine does not play
-what Blender shows: find out why before judging the motion itself. That skill also holds the renderer
-traps (URP portrait field of view, Humanoid sampling, 5-second CLI calls).
+1. Read the project's own art docs, scale doc and any existing forge, then extend them.
+2. No approved spec for the asset yet: `art-brief-spec`.
+3. Spec approved, nothing built: `model-build`, then `rig-and-clips`, then `engine-import`.
+4. Something made and not yet looked at: open the sheet, or hand it to `reviewer-agent`.
+5. Engine work you cannot run here is UNTESTED, said plainly, with the exact menu item or command
+   the user runs and what they should see.
 
-Render the clip file on its own skeleton too (enter the clip file itself as a Unity entry): the
-sheets differ where the engine changes the motion. Then open both sheets, and record the look:
-
-```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/review.py" frames --covers <clip files and controllers> \
-    --unity-sheet <png> --blender-sheet <png> --rest-pose <out>/<name>_rest.json \
-    --verdict pass --seen "<what you saw in both, at least 40 characters>"
-```
-
-**The rest poses must match.** `blender_frame_sheets.py` compares every bone's rest orientation in
-the clip file with the model's. A clip exported on another rest pose plays with every prop on those
-bones turned by the difference; the bone names still match, so the engine imports it without a
-word. The record is refused, and the stop blocked, while the comparison lists a bone more than 5
-degrees off, unless `--rest-ok` says why the difference does no harm. Fix it by re-exporting the
-clips on the model's own rest pose.
-
-What this catches, from a real review: `../rig-and-clips/examples/anim-review/` (2026-11-17). Weapons
-on 14 enemies followed an empty-handed arm swing, and the Crusader Boss's clip file had been
-exported on another rest pose (hands 79 and 85 degrees off), so his greatsword was 65 degrees off
-in game. Every one of those clips had passed its checks. Start with its `report.md`.
-
-A project without Unity or Blender sets
-`"anim_globs": []` in `.art-pipeline.json` and says so; the gate is then off for clips.
-
-## How to work through it
-
-1. **Read the project first.** Find its art docs, scale doc and any existing forge before writing
-   one. Extend what is there; when nothing is, `references/stages.md` gives the shape.
-2. **Find reference and get the spec approved before making anything.** Save real-world reference
-   (photographs, period plates, video frames, mocap, recordings) under `docs/art/reference/<id>/`,
-   write `docs/art/specs/<id>.json` from `../art-brief-spec/references/spec-template.md`, then:
-
-   ```bash
-   python "${CLAUDE_PLUGIN_ROOT}/scripts/approve.py" check <id>
-   ```
-
-   One spec may hold several items (four enemies of one Age, say), each with its own reference
-   for every part it makes: model, animation, texture, sound. The check names each missing piece
-   by item and part. When it passes it writes the review sheet `docs/art/specs/<id>.sheet.html`,
-   which shows every reference large in the same layout every time. Send the human that sheet
-   (as a file or a published page) and commit it; never summarise it in its place. Then send the
-   AskUserQuestion it prints, as printed and without `answers`: only the human's own "Approve"
-   click writes the approval
-   (`docs/art/approvals/<id>.json`, which you commit). A human at a terminal can instead run
-   `approve.py grant <id>`. Approval files and `.art-pipeline.json` cannot be written by your tools.
-   If the reference cannot be fetched (a blocked host), stop and ask the human for it; never
-   substitute your own drawing or reasoning.
-3. **Respect the build budget.** Each approved item allows `iterations` build or render runs
-   (default 5), counted whatever tool makes its output files. Editing the code or data an asset is
-   made from (`source_paths`) is not a build, and neither is a check; the hook says what each build
-   was charged for. When they are spent the hook refuses more,
-   and art any command makes outside an approval is put back straight away (a copy is kept in
-   `.git/art-pipeline/quarantine/`). Do not look for another route: show the human
-   the last render beside its reference and ask whether to accept it, add reference, or re-approve.
-   A fix that needs more than the budget is a sign that the reference or the spec is wrong.
-   **Run the project's check before every render you judge and before any movie or export.** Where
-   the project lists `checks`, movies and exports (`gated_commands`) are refused until the item has
-   a passing check newer than its last edit, and the stop is blocked while a changed item has none.
-   A render from the side cannot show a prop inside the body; the check can. When you report to the
-   human, quote the check's verdict, and never describe a render you have not checked as matching.
-   Where the project sets `clip_review_views`, a movie or export also needs a clip review: render
-   stills of every key pose from those views (always including top), put them beside the
-   reference, open the sheet with Read, and record what you saw with `review.py clip`.
-4. **Decisions that are the user's go to the user**, with a proposal page or a question: the look,
-   anything that contradicts an approved plan (for example a death animation when the plan says the
-   body vanishes). Defaults that are just craft, you choose and say so.
-5. **Set up Blender as a Python module**: `sh ../model-build/scripts/setup_bpy.sh`.
-   It finds a Python that matches a `bpy` wheel and installs it with Pillow. Cycles on CPU only:
-   EEVEE and Workbench abort without a GPU. `references/tooling-and-traps.md` has the rest.
-6. **Build by blueprint, never by hand-edit.** Fix the generator, not its output, so a rebuild
-   keeps the fix. Every output is regenerable from a committed script and spec.
-7. **Render and compose the review sheet** for every model you touch:
-
-   ```bash
-   python3.11 ../model-build/scripts/render_views.py <model.fbx|.glb|.blend> --out <dir>
-   python3 ../model-build/scripts/review_sheet.py --concept <concept.png> --views <dir> --title "<Name>" --out <sheet.png>
-   ```
-
-   Projects with their own renderer use it instead; the gate only
-   cares that a fresh sheet exists and was opened.
-8. **Look.** Open the sheet with Read. Compare it with the concept, and write down what you saw:
-   what matches, what does not, what you will change. Change, rebuild, re-render, look again. At
-   least one improvement pass per asset; "it passed" is not a look.
-9. **Record the look** so the gate can see it:
-
-   ```bash
-   python "${CLAUDE_PLUGIN_ROOT}/scripts/review.py" record --model <model path> --sheet <sheet.png> \
-       --verdict pass --seen "<what you saw, at least 40 characters>"
-   ```
-
-   `--verdict waived` (with the reason in `--seen`) is for a model that genuinely cannot be
-   rendered here; it is reported, never silent. `python "${CLAUDE_PLUGIN_ROOT}/scripts/review.py"
-   status` lists what the gate will say before you stop.
-10. **Keep the docs in step with the art.** Docs that describe art (a scale doc's roster, a brief's
-   budgets, a tool's status line) drift the moment a roster changes. Give the project a drift check
-   (a script comparing docs with the data and code, see `references/stages.md`, stage 8) and name it
-   in `.art-pipeline.json` at the repo root, so the gate runs it before every stop that changed a
-   model or a doc:
-
-   ```json
-   {"doc_check": "python3 tools/check_art_docs.py", "doc_check_paths": ["docs/**", "**/*.json"]}
-   ```
-
-   The same file can set `model_globs`, `exclude` and `review_dir` (default `docs/art/reviews`).
-11. **Engine work you cannot run here is UNTESTED**, said plainly, with the exact menu item or
-   command the user runs and what they should see.
+Per-project settings (`model_globs`, `anim_globs`, `exclude`, `review_dir`, `doc_check`) live in
+`.art-pipeline.json` at the repo root.
 
 ## Delegating
 
@@ -184,11 +72,3 @@ reference assets (say a humanoid and a quadruped) to a high bar before fanning o
 workers copy a bar instead of guessing. Never more than two
 workers at once on one checkout, and each stages only its own paths.
 
-## References
-
-- `references/stages.md`: each stage in full, inputs, outputs, commands, gates.
-- `../art-brief-spec/references/style-bible-template.md`: the brief a project fills in before anything is drawn.
-- `../art-brief-spec/references/spec-template.md`: the per-asset spec a human approves, and what counts as reference.
-- `references/tooling-and-traps.md`: Blender as a module, the blueprint pattern, rigging,
-  AnimForge-style clips, engine import, and the traps that already cost a day.
-- `../rig-and-clips/examples/anim-review/`: the frame-sheet review that made the step mandatory, with what it found.
