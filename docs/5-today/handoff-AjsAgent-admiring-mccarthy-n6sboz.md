@@ -10,7 +10,8 @@ Split the `art-pipeline` skill into separate skills that each work alone, and ma
 - Done for #13: `agents/art-reviewer.md`, a copy of the house-rules `reviewer` tuned for art, and the `reviewer-agent` skill text that spawns it. It has not been spawned yet, because plugin agents load at session start.
 - Blocked: the `--reviewer` flag on `review.py record`, `clip` and `frames`, its gate rule in `artlib.py` and its `verify.py` checks. The design-loop hook closes code edits until aj types `Build plan approved: reviewer-agent` from inside this repo.
 - Done for #14 (docs part): `art-pipeline` is a ~60-line front door; `stages.md` and `tooling-and-traps.md` are deleted. `verify.py` 109 of 109 after it. Still open: the `plugin.json` version bump to 0.11.0, refused with other code edits.
-- Agent trial: `art-pipeline:art-reviewer` does not exist in a session where only `house-rules` is installed, so it was not spawned.
+- Build approved: aj typed `Build plan approved: reviewer-agent`; a builder is adding the `--reviewer` flag, the `artlib.py` rule and four `verify.py` checks (result not yet in). Decision logged in `docs/6-decisions/Decisions.md`.
+- Agent trial: `art-pipeline@claude-art-pipeline` is now installed (`claude plugin install`), but this session still reports `art-pipeline:art-reviewer` not found, because agents load at session start. Spawn it in a new session.
 
 ## The next step
 When #13 lands, do #14, then run `verify.py`, quote the result and push. aj has also been asked whether to move the scratch clone `/home/user/plunderspell` to `/home/user/_to_delete/`, because the Stop gate flags an approval file that clone's checkout wrote.

@@ -13,3 +13,4 @@
 - Slimmed `art-pipeline` to a front door (#14) and deleted `references/stages.md` and `references/tooling-and-traps.md`. `verify.py` still passes 109 of 109. The `plugin.json` version bump to 0.11.0 is refused until code edits open.
 - Tried to spawn `art-pipeline:art-reviewer`: it does not exist in this session, because only the `house-rules` plugin is installed here, so the agent is still unexercised.
 - The `--reviewer` flag (#13 code) still waits for aj to type `Build plan approved: reviewer-agent`.
+- aj approved the build (`Build plan approved: reviewer-agent`). Logged the decision in `docs/6-decisions/Decisions.md`. Installed the plugin from this repo's marketplace; the agent still needs a new session. A builder is adding the `--reviewer` flag and its checks.
