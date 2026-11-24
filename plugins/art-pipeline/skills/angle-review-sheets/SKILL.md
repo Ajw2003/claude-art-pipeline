@@ -25,7 +25,7 @@ For each character, under the output folder:
 
 1. **Write the config** (`references/config.md`): where the model .blend of each character lives, which FBX clip
    files it plays, and optionally the game-side turns. Keep it in the project, next to the clips.
-2. **Install the tools once** (`../art-pipeline/scripts/setup_bpy.sh`, or `pip install bpy pillow`; `ffmpeg` on PATH).
+2. **Install the tools once** (`../model-build/scripts/setup_bpy.sh`, or `pip install bpy pillow`; `ffmpeg` on PATH).
 3. **Test on two or three characters with a few clips first.** Use `--only <clip> ...` on `angle_sheets.py`.
    Look at a strip and a video before committing to the long run. Check: numbers readable, order right,
    whole body in frame in every view, the top view actually turns on turn clips.
