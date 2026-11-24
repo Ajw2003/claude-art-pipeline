@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13).
+
 ## 0.11.0 - 2026-11-24
 
 - **`--reviewer NAME` on `review.py record`, `clip` and `frames` (issue #13).** The record stores the reviewer
@@ -8,7 +12,6 @@
   change, an existing sheet, and a sheet whose current sha256 equals the recorded one (a record with no
   recorded hash is refused too). A record without a reviewer keeps every check. `review.py status` prints
   `[reviewed by NAME]`. Four new `verify.py` checks: 113 of 113.
-  The `art-reviewer` output rule now forbids an opening sentence and extra report sections.
 
 - **`art-pipeline` is a front door (issue #14).** `skills/art-pipeline/SKILL.md` shrank from 212 lines to
   about 60: rule one, rule two, the stage map and a pointer to every stage skill. `references/stages.md` and
