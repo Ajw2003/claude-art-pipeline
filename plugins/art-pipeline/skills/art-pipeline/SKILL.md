@@ -79,17 +79,12 @@ Stop gate refuses to pass while a changed clip file (`*.anim`, `*.bvh`, `*@*.fbx
 its `.meta` has no record pointing at both sheets, both newer than the change and both opened with
 Read this session.
 
-```bash
-# Unity, Edit mode only (never Play): a prefab, a model file or a folder of prefabs, optionally =<controller or clip file>
-bash scripts/unity_frame_sheets.sh --project <Unity project> --out docs/art/frames/<id> \
-     [--gap Hand.L Hand.R] [--dir <prop bone>] <entry> [<entry> ...]
-# Blender: the clip file's actions on the model's armature; also writes <name>_rest.json
-blender -b --factory-startup -P scripts/blender_frame_sheets.py -- --model <model.fbx> --clips <clip file.fbx> \
-     --out docs/art/frames/<id> --name <name> [--gap Hand.L Hand.R] [--dir <prop bone>]
-python scripts/frame_sheet_pages.py label docs/art/frames/<id>    # after Blender; the Unity script labels its own
-python scripts/frame_sheet_pages.py pages docs/art/frames/<id>    # overview pages for many models
-python scripts/frame_sheet_pages.py probes docs/art/frames/<id>   # bone gap and prop direction, Unity beside Blender
-```
+Render and compare them with the **frame-sheet-compare** skill (`../frame-sheet-compare/SKILL.md`):
+`unity_frame_sheets.sh`, then `blender_frame_sheets.py --match` (which also writes `<name>_rest.json`),
+then `frame_sheet_pages.py label` and `compare`. Both renderers read one camera, light and sampling
+file, so the two sheets are a controlled comparison, and a failing row means the engine does not play
+what Blender shows: find out why before judging the motion itself. That skill also holds the renderer
+traps (URP portrait field of view, Humanoid sampling, 5-second CLI calls).
 
 Render the clip file on its own skeleton too (enter the clip file itself as a Unity entry): the
 sheets differ where the engine changes the motion. Then open both sheets, and record the look:
@@ -112,11 +107,7 @@ on 14 enemies followed an empty-handed arm swing, and the Crusader Boss's clip f
 exported on another rest pose (hands 79 and 85 degrees off), so his greatsword was 65 degrees off
 in game. Every one of those clips had passed its checks. Start with its `report.md`.
 
-The Unity renderer keeps three details that each cost a session: Humanoid clips are sampled with
-`AnimationMode.SampleAnimationClip` (plain `SampleAnimation` and a PlayableGraph leave the pose
-frozen in a preview scene); `SkinnedMeshRenderer.forceMatrixRecalculationPerRender` is set, or every
-render in one Editor frame shows the first pose; and it renders one entry per call and resumes,
-because the Unity CLI stops a call after 5 seconds. A project without Unity or Blender sets
+A project without Unity or Blender sets
 `"anim_globs": []` in `.art-pipeline.json` and says so; the gate is then off for clips.
 
 ## How to work through it

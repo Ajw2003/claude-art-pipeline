@@ -314,7 +314,7 @@ def frames_record_name(covers):
 
 
 def frames_hint(asset):
-    sk = os.path.normpath(os.path.join(HERE, "..", "skills", "art-pipeline", "scripts"))
+    sk = os.path.normpath(os.path.join(HERE, "..", "skills", "frame-sheet-compare", "scripts"))
     return ("render every clip as frame sheets in Unity (bash \"%s\" ...) and in Blender (blender -b --factory-startup -P "
             "\"%s\" -- ...), open both with Read, then: python \"%s\" frames --covers %s --unity-sheet <png> "
             "--blender-sheet <png> --rest-pose <name>_rest.json --verdict pass --seen \"<what you saw, >= %d chars>\"" % (

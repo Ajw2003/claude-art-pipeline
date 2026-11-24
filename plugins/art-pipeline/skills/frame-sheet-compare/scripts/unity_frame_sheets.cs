@@ -5,6 +5,7 @@
 //   run <id>             a new id starts again from the first entry
 //   out <absolute dir>   sheets go to <dir>/raw/<name>.png and <dir>/raw/<name>.json
 //   steps <n>            moments per clip (default 5)
+//   cell, fov, pitch, yaws, fit, background, ambient, light: the shared camera, copied from frame_camera.txt
 //   gap <boneA> <boneB>  optional: distance between two bones at each clip's first frame
 //   dir <bone>           optional: where a bone points at each clip's first frame (toward its first child)
 //   entry <asset>[=<clips>]  a prefab, a model file or a folder of prefabs; <clips> is a .controller or a clip file.
@@ -14,12 +15,25 @@
 //   left the pose frozen in a preview scene.
 // - SkinnedMeshRenderer.forceMatrixRecalculationPerRender: without it a skinned mesh re-skins once per Editor frame,
 //   so every render in one call showed the first pose.
+// - URP previews a portrait target with the field of view across its width (a 240x320 cell drew the model at 3/4
+//   size, while camera.projectionMatrix said otherwise). A portrait cell is rendered square and its middle cut out.
 // - One entry per call, resumed through SessionState: the Unity CLI stops a call after 5 s of main-thread time.
 var cfgPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(UnityEngine.Application.dataPath), "Temp/art-pipeline-frame-sheets.txt");
 if (!System.IO.File.Exists(cfgPath)) return "FAIL no config at " + cfgPath + " (run unity_frame_sheets.sh)";
 string runId = "", outDir = null, gapA = null, gapB = null, dirBone = null;
-int Steps = 5;
-const int W = 240, H = 320;
+int Steps = 5, W = 240, H = 320;
+float fov = 30f, pitch = 8f, fit = 1.4f;
+var yaws = new System.Collections.Generic.List<float>();
+var background = new UnityEngine.Color(0.22f, 0.22f, 0.25f);
+var ambient = new UnityEngine.Color(0.7f, 0.7f, 0.75f);
+var lightSpecs = new System.Collections.Generic.List<float[]>();
+float[] Nums(string v)
+{
+    var parts = v.Split(new[] { ' ', '	' }, System.StringSplitOptions.RemoveEmptyEntries);
+    var n = new float[parts.Length];
+    for (int i = 0; i < parts.Length; i++) n[i] = float.Parse(parts[i], System.Globalization.CultureInfo.InvariantCulture);
+    return n;
+}
 var entries = new System.Collections.Generic.List<string[]>();
 foreach (var raw in System.IO.File.ReadAllLines(cfgPath))
 {
@@ -30,6 +44,14 @@ foreach (var raw in System.IO.File.ReadAllLines(cfgPath))
     if (key == "run") runId = val;
     else if (key == "out") outDir = val;
     else if (key == "steps") Steps = int.Parse(val);
+    else if (key == "cell") { var n = Nums(val); W = (int)n[0]; H = (int)n[1]; }
+    else if (key == "fov") fov = Nums(val)[0];
+    else if (key == "pitch") pitch = Nums(val)[0];
+    else if (key == "fit") fit = Nums(val)[0];
+    else if (key == "yaws") { yaws.Clear(); yaws.AddRange(Nums(val)); }
+    else if (key == "background") { var n = Nums(val); background = new UnityEngine.Color(n[0], n[1], n[2]); }
+    else if (key == "ambient") { var n = Nums(val); ambient = new UnityEngine.Color(n[0], n[1], n[2]); }
+    else if (key == "light") lightSpecs.Add(Nums(val));
     else if (key == "gap") { var p = val.Split(' '); gapA = p[0]; gapB = p[1]; }
     else if (key == "dir") dirBone = val;
     else if (key == "entry")
@@ -48,6 +70,7 @@ foreach (var raw in System.IO.File.ReadAllLines(cfgPath))
     else return "FAIL unknown config line: " + line;
 }
 if (outDir == null) return "FAIL the config has no out line";
+if (yaws.Count == 0 || lightSpecs.Count == 0) return "FAIL the config has no camera (yaws, light): run unity_frame_sheets.sh, which copies frame_camera.txt in";
 var rawDir = System.IO.Path.Combine(outDir, "raw");
 System.IO.Directory.CreateDirectory(rawDir);
 if (UnityEditor.SessionState.GetString("ArtPipelineFrameSheetRun", "") != runId)
@@ -105,15 +128,24 @@ var bounds = new UnityEngine.Bounds(go.transform.position, UnityEngine.Vector3.z
 foreach (var r in go.GetComponentsInChildren<UnityEngine.Renderer>()) bounds.Encapsulate(r.bounds);
 float height = UnityEngine.Mathf.Max(bounds.size.y, 1.5f);
 var target = new UnityEngine.Vector3(0f, height * 0.5f, 0f);
-preview.camera.fieldOfView = 30f;
+preview.camera.fieldOfView = fov;
 preview.camera.nearClipPlane = 0.05f; preview.camera.farClipPlane = 100f;
 preview.camera.clearFlags = UnityEngine.CameraClearFlags.SolidColor;
-preview.camera.backgroundColor = new UnityEngine.Color(0.22f, 0.22f, 0.25f);
-preview.lights[0].intensity = 2.2f; preview.lights[0].transform.rotation = UnityEngine.Quaternion.Euler(40f, 30f, 0f);
-preview.lights[1].intensity = 1.2f;
-preview.ambientColor = new UnityEngine.Color(0.7f, 0.7f, 0.75f);
-float dist = height * 0.5f / UnityEngine.Mathf.Tan(15f * UnityEngine.Mathf.Deg2Rad) * 1.4f;  // room for a raised blade and a body lying forward
-var views = new[] { 35f, 90f };  // yaw around the model: three-quarter front, then its right side
+preview.camera.backgroundColor = background;
+for (int i = 0; i < preview.lights.Length; i++)
+{
+    var l = preview.lights[i];
+    if (i >= lightSpecs.Count) { l.intensity = 0f; continue; }
+    var spec = lightSpecs[i];
+    l.transform.rotation = UnityEngine.Quaternion.Euler(spec[0], spec[1], 0f);
+    l.color = new UnityEngine.Color(spec[2], spec[3], spec[4]);
+    l.intensity = spec[5];
+    l.shadows = UnityEngine.LightShadows.None;
+}
+preview.ambientColor = ambient;
+float dist = height * 0.5f / UnityEngine.Mathf.Tan(fov * 0.5f * UnityEngine.Mathf.Deg2Rad) * fit;
+var views = yaws.ToArray();
+int RW = UnityEngine.Mathf.Max(W, H);  // render width: square when the cell is portrait (see the URP note at the top)
 
 UnityEngine.Transform Bone(string n)
 {
@@ -150,6 +182,8 @@ for (int row = 0; row < rows; row++)
     {
         if (clip == null && col > 0) break;
         float t = clip == null ? 0f : clip.length * col / (clip.isLooping ? Steps : Steps - 1);
+        // On a whole key, as blender_frame_sheets.py samples: between keys each engine interpolates its own way.
+        if (clip != null) t = UnityEngine.Mathf.Floor(t * clip.frameRate + 0.5f) / clip.frameRate;  // halves up, as Blender
         if (clip == null) { if (animator != null) { animator.Rebind(); animator.enabled = false; } }
         else
         {
@@ -162,13 +196,13 @@ for (int row = 0; row < rows; row++)
         if (col == 0) probe = Probe();
         for (int v = 0; v < views.Length; v++)
         {
-            var rot = UnityEngine.Quaternion.Euler(8f, 180f + views[v], 0f);
+            var rot = UnityEngine.Quaternion.Euler(pitch, 180f + views[v], 0f);
             preview.camera.transform.position = target - rot * UnityEngine.Vector3.forward * dist;
             preview.camera.transform.rotation = rot;
-            preview.BeginStaticPreview(new UnityEngine.Rect(0, 0, W, H));
+            preview.BeginStaticPreview(new UnityEngine.Rect(0, 0, RW, H));
             preview.Render(true);
             var tex = preview.EndStaticPreview();
-            sheet.SetPixels((v * cols + col) * W, (rows - 1 - row) * H, W, H, tex.GetPixels(0, 0, W, H));
+            sheet.SetPixels((v * cols + col) * W, (rows - 1 - row) * H, W, H, tex.GetPixels((RW - W) / 2, 0, W, H));
             UnityEngine.Object.DestroyImmediate(tex);
         }
     }
@@ -183,7 +217,8 @@ UnityEngine.Object.DestroyImmediate(sheet);
 preview.Cleanup();
 var json = $"{{\"name\": \"{Esc(name)}\", \"engine\": \"unity\", \"asset\": \"{Esc(assetPath)}\", \"clips_from\": \"{Esc(clipsFrom)}\", " +
            $"\"cell\": [{W}, {H}], \"steps\": {Steps}, \"views\": [\"three-quarter\", \"side\"], \"axes\": \"x right, y up, z forward\", " +
-           $"\"probe_bones\": {{\"gap\": \"{gapA} {gapB}\", \"dir\": \"{dirBone}\"}}, \"rows\": [\n  {string.Join(",\n  ", rowJson)}]}}\n";
+           $"\"probe_bones\": {{\"gap\": \"{gapA} {gapB}\", \"dir\": \"{dirBone}\"}}, " +
+           $"\"frame\": {{\"height\": {height.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}}}, \"rows\": [\n  {string.Join(",\n  ", rowJson)}]}}\n";
 System.IO.File.WriteAllText(System.IO.Path.Combine(rawDir, name + ".json"), json);
 UnityEditor.SessionState.SetInt("ArtPipelineFrameSheetNext", next + 1);
 return report.Append(next + 1 >= entries.Count ? "done" : "more").ToString();

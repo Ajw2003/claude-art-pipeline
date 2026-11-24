@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Renders Unity frame sheets (unity_frame_sheets.cs) in the project's running Editor, in Edit mode, then labels them.
+# The camera, light and layout come from frame_camera.txt, which blender_frame_sheets.py reads too.
 # Usage:
 #   bash unity_frame_sheets.sh --project <Unity project> --out <dir> [--steps 5] [--gap BoneA BoneB] [--dir Bone] \
 #        <entry> [<entry> ...]
@@ -8,7 +9,7 @@
 # Needs the `unity` CLI connected to that project's Editor. Never enters Play mode and never recompiles the project.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project="" out="" steps=5 gap="" dir=""
+project="" out="" steps="" gap="" dir=""
 entries=()
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -31,7 +32,8 @@ cfg="$project/Temp/art-pipeline-frame-sheets.txt"
 {
     echo "run $(date +%s)-$$"
     echo "out $(win "$out")"
-    echo "steps $steps"
+    sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$HERE/frame_camera.txt"  # the camera both renderers share
+    [ -n "$steps" ] && echo "steps $steps"
     [ -n "$gap" ] && echo "gap $gap"
     [ -n "$dir" ] && echo "dir $dir"
     for e in "${entries[@]}"; do echo "entry $e"; done

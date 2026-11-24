@@ -1,0 +1,14 @@
+# The one camera, light and layout both frame-sheet renderers use (unity_frame_sheets.cs, blender_frame_sheets.py),
+# so a Unity sheet and a Blender sheet of the same clips are a controlled comparison: same view, same framing, same
+# light, same moments. Change it here, never in a renderer. Unity axes: x right, y up, z forward, the model faces +z.
+# Angles in degrees. Anything after # is a comment.
+cell 240 320              # width and height of one picture, in pixels
+steps 5                   # moments per clip (the scripts' --steps overrides it)
+fov 30                    # vertical field of view
+pitch 8                   # the camera looks down by this much
+yaws 35 90                # around the model: three-quarter front, then its right side
+fit 1.4                   # distance = height / 2 / tan(fov / 2) * fit; room for a raised blade or a body lying down
+background 0.22 0.22 0.25 # sRGB
+ambient 0.7 0.7 0.75      # flat ambient light
+light 40 30 1.0 1.0 1.0 2.2      # directional light: pitch, yaw, colour, intensity; no shadows
+light 340 218 1.0 1.0 1.0 1.2

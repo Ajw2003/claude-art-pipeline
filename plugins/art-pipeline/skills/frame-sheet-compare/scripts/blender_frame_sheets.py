@@ -3,11 +3,17 @@ like unity_frame_sheets.cs (rest pose on top, a row per clip, evenly spaced fram
 It also compares the rest pose of the clip file's armature with the model's: a clip exported on another rest pose
 plays with every prop on that bone turned by the difference (the Crusader's greatsword was 65 degrees off).
 
-Run with Blender itself (workbench needs a GPU; the bpy wheel without one should use --engine CYCLES):
+The camera, light and layout come from frame_camera.txt, the file unity_frame_sheets.cs reads too, turned from Unity's
+axes into Blender's (the model faces -Y, as an FBX from Unity imports). With --match <Unity raw sheet .json> it also
+takes that sheet's framing height, row order and loop flags, so every cell is the same moment from the same camera:
+a controlled comparison (frame_sheet_pages.py compare lays the two side by side and scores every cell).
+
+Run with Blender itself or the bpy module (EEVEE needs a GPU; without one use --engine CYCLES):
   blender -b --factory-startup -P blender_frame_sheets.py -- --model <model.fbx|.glb|.blend> [--clips <clip file>] \
-          --out <dir> [--name N] [--steps 5] [--max-deg 5] [--gap BoneA BoneB] [--dir Bone] [--engine WORKBENCH]
-Without --clips the actions inside the model file are used. Writes <out>/raw/<name>_blender.png and .json, and
-<out>/<name>_rest.json (the rest-pose comparison); then run frame_sheet_pages.py label <out>.
+          --out <dir> [--name N] [--match <out>/raw/<unity name>.json] [--steps 5] [--max-deg 5] \
+          [--gap BoneA BoneB] [--dir Bone] [--engine BLENDER_EEVEE]
+Paths must be absolute. Without --clips the actions inside the model file are used. Writes <out>/raw/<name>_blender.png
+and .json, and <out>/<name>_rest.json (the rest-pose comparison); then run frame_sheet_pages.py label <out>.
 """
 import argparse
 import json
@@ -19,19 +25,47 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def read_camera(path):
+    """frame_camera.txt: one setting per line, numbers after the key; 'light' may repeat."""
+    cam = {"light": []}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            bits = line.split("#")[0].split()
+            if bits:
+                nums = [float(x) for x in bits[1:]]
+                if bits[0] == "light":
+                    cam["light"].append(nums)
+                else:
+                    cam[bits[0]] = nums
+    return cam
+
+
+CAMERA = read_camera(os.path.join(HERE, "frame_camera.txt"))
+
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 ap = argparse.ArgumentParser(prog="blender_frame_sheets.py")
 ap.add_argument("--model", required=True)
 ap.add_argument("--clips")
 ap.add_argument("--out", required=True)
 ap.add_argument("--name")
-ap.add_argument("--steps", type=int, default=5)
+ap.add_argument("--steps", type=int, help="moments per clip (default: frame_camera.txt)")
+ap.add_argument("--match", help="the Unity sheet's raw .json: use its framing height, row order and loop flags")
 ap.add_argument("--max-deg", type=float, default=5.0, help="rest-pose difference, in degrees, that counts as a mismatch")
 ap.add_argument("--gap", nargs=2, metavar=("BONE_A", "BONE_B"))
 ap.add_argument("--dir", metavar="BONE")
-ap.add_argument("--engine", default="BLENDER_WORKBENCH")
+ap.add_argument("--engine", default="BLENDER_EEVEE")
 a = ap.parse_args(argv)
-W, H = 240, 320
+W, H = (int(x) for x in CAMERA["cell"])
+match = None
+if a.match:
+    with open(a.match, encoding="utf-8") as fh:
+        match = json.load(fh)
+    if "frame" not in match:
+        sys.exit("blender_frame_sheets: %s has no framing height; re-render it with this plugin's unity_frame_sheets.sh" % a.match)
+a.steps = a.steps or (match["steps"] if match else int(CAMERA["steps"][0]))
 name = a.name or os.path.splitext(os.path.basename(a.model))[0]
 raw_dir = os.path.join(a.out, "raw")
 os.makedirs(raw_dir, exist_ok=True)
@@ -101,34 +135,53 @@ print("REST: %d bones compared, %d over %.1f deg: %s" % (
 
 scene = bpy.context.scene
 scene.render.engine = a.engine
-if a.engine == "BLENDER_WORKBENCH":
-    scene.display.shading.light = "STUDIO"
-    scene.display.shading.color_type = "TEXTURE"
-else:
-    scene.cycles.samples = 16
 scene.render.resolution_x, scene.render.resolution_y = W, H
-scene.render.film_transparent = False
-scene.world = bpy.data.worlds.new("w")
+scene.render.resolution_percentage = 100
+scene.render.film_transparent = True  # the background colour goes in afterwards, exactly as Unity clears to it
+scene.view_settings.view_transform = "Standard"  # Unity writes plain sRGB: no filmic tone curve
+scene.view_settings.look = "None"
+if a.engine == "CYCLES":
+    scene.cycles.samples = 16
+scene.world = bpy.data.worlds.new("w")  # flat ambient, as Unity's preview ambient colour
+scene.world.use_nodes = True
+scene.world.node_tree.nodes["Background"].inputs["Color"].default_value = list(CAMERA["ambient"]) + [1.0]
+scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value = 1.0
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
-cam.data.lens = 50
+cam.data.sensor_fit = "VERTICAL"
+cam.data.angle_y = math.radians(CAMERA["fov"][0])
+cam.data.clip_start, cam.data.clip_end = 0.05, 100.0
 scene.collection.objects.link(cam)
 scene.camera = cam
-if scene.render.engine != "BLENDER_WORKBENCH":
-    sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
-    sun.rotation_euler = (math.radians(50), 0, math.radians(30))
+
+
+def unity_dir(pitch_deg, yaw_deg):
+    """Where Unity's Euler(pitch, yaw, 0) points its forward axis, in Blender's axes (Unity x, y, z -> -x, -z, y)."""
+    p, y = math.radians(pitch_deg), math.radians(yaw_deg)
+    ux, uy, uz = math.cos(p) * math.sin(y), -math.sin(p), math.cos(p) * math.cos(y)
+    return Vector((-ux, -uz, uy))
+
+
+for i, (lp, ly, r, g, b, strength) in enumerate(CAMERA["light"]):
+    sun = bpy.data.objects.new("sun%d" % i, bpy.data.lights.new("sun%d" % i, "SUN"))
+    sun.data.color, sun.data.energy, sun.data.angle = (r, g, b), strength, 0.0
+    sun.data.use_shadow = False  # Unity's preview lights cast none
+    sun.rotation_euler = unity_dir(lp, ly).to_track_quat("-Z", "Y").to_euler()
     scene.collection.objects.link(sun)
 
-height = max([(o.matrix_world @ Vector(c)).z for o in model_objs if o.type == "MESH" for c in o.bound_box] or [1.5])
-height = max(height, 1.5)
+if match:
+    height = match["frame"]["height"]
+else:  # the same measure Unity takes: the height of everything drawn, at rest, at least 1.5
+    zs = [(o.matrix_world @ Vector(c)).z for o in model_objs if o.type == "MESH" and not o.hide_render for c in o.bound_box]
+    height = max(max(zs) - min(zs) if zs else 0.0, 1.5)
 target = Vector((0, 0, height * 0.5))
-dist = height * 2.6
-VIEWS = (35, 90)  # three-quarter front, then the model's right side, as in the Unity sheet
+dist = height * 0.5 / math.tan(math.radians(CAMERA["fov"][0]) * 0.5) * CAMERA["fit"][0]
+VIEWS = CAMERA["yaws"]
+BACKGROUND = np.array(CAMERA["background"], dtype=np.float32)
 
 
 def aim(yaw_deg):
-    # FBX import turns Unity's +Z forward into Blender's -Y: the model faces -Y.
-    yaw = math.radians(yaw_deg)
-    cam.location = target + Vector((math.sin(yaw) * dist, -math.cos(yaw) * dist, height * 0.12))
+    # Unity puts its camera at target - Euler(pitch, 180 + yaw) * forward * dist, looking at the target.
+    cam.location = target - unity_dir(CAMERA["pitch"][0], 180.0 + yaw_deg) * dist
     cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
 
 
@@ -139,6 +192,9 @@ def render():
     img = bpy.data.images.load(path)
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
     bpy.data.images.remove(img)
+    alpha = px[:, :, 3:4]
+    px[:, :, :3] = px[:, :, :3] * alpha + BACKGROUND * (1.0 - alpha)
+    px[:, :, 3] = 1.0
     return px  # bottom-up rows
 
 
@@ -167,13 +223,29 @@ for v in VIEWS:
     aim(v)
     cells.append(render())
 blank = np.broadcast_to(cells[0][0, 0], (H, W, 4))
-grid.append([cells[0]] + [blank] * (a.steps - 1) + [cells[1]] + [blank] * (a.steps - 1))
+grid.append([c for cell in cells for c in [cell] + [blank] * (a.steps - 1)])
+by_label = {}
 for act in actions:
+    by_label.setdefault(act.name.split("|")[-1], act)
+if match:  # Unity's rows in Unity's order; a clip only one side has still gets a row, left empty on the other
+    plan = [(r["label"], r.get("loop", False)) for r in match["rows"][1:]]
+    plan += [(lab, False) for lab in by_label if lab not in {p[0] for p in plan}]
+else:
+    plan = [(lab, False) for lab in by_label]
+for label, loop in plan:
+    act = by_label.get(label)
+    if act is None:
+        grid.append([blank] * (a.steps * len(VIEWS)))
+        rows.append({"label": label, "loop": loop, "missing": "not in %s" % (a.clips or a.model)})
+        print("ROW %d: %s missing from the clip file" % (len(rows) - 1, label))
+        continue
     rig.animation_data.action = act
     if hasattr(rig.animation_data, "action_slot") and getattr(act, "slots", None):
         rig.animation_data.action_slot = act.slots[0]
     start, end = act.frame_range
-    frames = [int(round(start + (end - start) * i / (a.steps - 1))) for i in range(a.steps)]
+    # Unity samples a looping clip at length * i / steps (the last moment would repeat the first), else i / (steps - 1).
+    # On a whole key, as unity_frame_sheets.cs samples: between keys each engine interpolates its own way.
+    frames = [start + math.floor((end - start) * i / (a.steps if loop else a.steps - 1) + 0.5) for i in range(a.steps)]
     per_view = [[None] * a.steps for _ in VIEWS]
     if clip_rig is not None:  # the clip file's own skeleton plays it too: the numbers as authored
         if clip_rig.animation_data is None:
@@ -182,7 +254,7 @@ for act in actions:
         if hasattr(clip_rig.animation_data, "action_slot") and getattr(act, "slots", None):
             clip_rig.animation_data.action_slot = act.slots[0]
     for i, f in enumerate(frames):
-        scene.frame_set(f)
+        scene.frame_set(int(math.floor(f)), subframe=f - math.floor(f))
         if i == 0:
             p = probe(rig)
             p_own = probe(clip_rig) if clip_rig is not None else None
@@ -190,8 +262,7 @@ for act in actions:
             aim(v)
             per_view[vi][i] = render()
     grid.append([c for row in per_view for c in row])
-    label = act.name.split("|")[-1]
-    rows.append({"label": label, "frames": [int(start), int(end)], "probe": p})
+    rows.append({"label": label, "frames": [int(start), int(end)], "loop": loop, "probe": p})
     if p_own is not None:
         rows[-1]["probe_clip_rig"] = p_own
     print("ROW %d: %s %d-%d model rig %s, clip file's rig %s" % (len(rows) - 1, label, start, end, p, p_own))
@@ -206,6 +277,7 @@ img.save()
 with open(os.path.join(raw_dir, name + "_blender.json"), "w", encoding="utf-8") as fh:
     json.dump({"name": name + "_blender", "engine": "blender", "asset": a.model, "clips_from": a.clips or a.model,
                "cell": [W, H], "steps": a.steps, "views": ["three-quarter", "side"], "axes": "x right, y up, z forward",
+               "frame": {"height": height}, "matched_to": a.match or "",
                "probe_bones": {"gap": " ".join(a.gap or []), "dir": a.dir or ""}, "rest_pose": rest_path,
                "rows": rows}, fh, indent=1)
     fh.write("\n")

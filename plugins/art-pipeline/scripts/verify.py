@@ -823,6 +823,40 @@ try:
     d = mkrepo()
     rc, out, _ = run([SH, RUN, "start"], json.dumps({"session_id": "s1", "cwd": d}))
     report(rc == 0 and "art-pipeline:" in out, "run.sh start with a real interpreter reaches hook.py")
+
+    # the frame-sheet comparison: one camera for both renderers, and compare scores what it lays side by side
+    sdir = os.path.join(HERE, "..", "skills", "frame-sheet-compare", "scripts")
+    texts = {f: open(os.path.join(sdir, f), encoding="utf-8").read()
+             for f in ("unity_frame_sheets.sh", "blender_frame_sheets.py")}
+    report(all("frame_camera.txt" in t for t in texts.values()) and os.path.isfile(os.path.join(sdir, "frame_camera.txt")),
+           "frame sheets: the Unity and the Blender renderer both take their camera from frame_camera.txt")
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError:
+        print("    (skipped the compare check: it needs numpy and Pillow)")
+    else:
+        d = tempfile.mkdtemp(prefix="art-pipeline-cmp-")
+        TMP.append(d)
+        os.makedirs(os.path.join(d, "raw"))
+        meta = {"cell": [16, 8], "steps": 1, "views": ["side"], "frame": {"height": 2.0},
+                "rows": [{"label": "rest pose"}, {"label": "idle"}]}
+        figure = np.full((16, 16, 3), 50, np.uint8)
+        figure[2:6, 1:5] = figure[10:14, 1:5] = 200
+        moved = figure.copy()
+        moved[10:14] = 50
+        moved[10:14, 10:14] = 200  # the idle pose's limb is 9 pixels away
+        for name, img in (("u", figure), ("b", figure), ("m", moved)):
+            Image.fromarray(img).save(os.path.join(d, "raw", name + ".png"))
+            with open(os.path.join(d, "raw", name + ".json"), "w", encoding="utf-8") as fh:
+                json.dump(dict(meta, name=name), fh)
+        pages = os.path.join(sdir, "frame_sheet_pages.py")
+        rc_same, out_same, _ = run([sys.executable, pages, "compare", d, "u", "b"])
+        rc_diff, out_diff, _ = run([sys.executable, pages, "compare", d, "u", "m"])
+        report(rc_same == 0 and "RESULT u vs b: PASS" in out_same and rc_diff == 1
+               and "RESULT idle: FAIL worst overlap 0.000" in out_diff and "RESULT rest pose: PASS" in out_diff
+               and os.path.isfile(os.path.join(d, "compare_u_1.png")),
+               "frame sheets: compare passes identical sheets and fails a pose that moved, naming the clip")
 finally:
     for t in TMP:
         shutil.rmtree(t, ignore_errors=True)
