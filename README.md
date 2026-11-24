@@ -23,7 +23,7 @@ In any Claude Code session, type
 
 or just ask for a model, character or prop - the skill also loads on its own when the request
 fits. The renders it uses need Blender's Python module; the skill's
-`scripts/setup_bpy.sh` installs it. The review gate (below) is always on once installed.
+`skills/model-build/scripts/setup_bpy.sh` installs it. The review gate (below) is always on once installed.
 
 ## The approval gate: nothing is made without reference and a human's approval
 
@@ -87,7 +87,7 @@ files under `animations/`, `animation/`, `anims/` or `clips/`, plus each one's `
 stop until `review.py frames --covers ... --unity-sheet U.png --blender-sheet B.png --rest-pose
 R.json --verdict pass --seen "..."` points at both sheets, both newer than the change and opened
 this session, and the rest-pose comparison lists no bone over its limit (or `--rest-ok` explains
-it). The renderers are in the skill's `scripts/`; `examples/anim-review/` is the review that made
+it). The renderers are in the `frame-sheet-compare` skill's `scripts/`; `skills/rig-and-clips/examples/anim-review/` is the review that made
 this mandatory. `"anim_globs": []` turns it off. Records are `<review_dir>/<clip>.<hash>.frames.json`.
 
 Every Bash hook acts on each repo the command can reach: the working directory, its `cd`, `pushd`

@@ -83,7 +83,7 @@ weighted, at most 4 influences, weights summing to 1.
 
 Then the review sheet: the concept on the left; three-quarter, front (beside the reference human),
 side and wireframe renders on the right; a caption with triangles against budget, size against
-spec, bones. `../model-build/scripts/render_views.py` and `../model-build/scripts/review_sheet.py` make one for any model when
+spec, bones. `../../model-build/scripts/render_views.py` and `../../model-build/scripts/review_sheet.py` make one for any model when
 the project has no renderer of its own.
 
 **Gate:** open the sheet. Silhouette and proportion against the concept; colours; key details
