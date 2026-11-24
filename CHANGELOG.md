@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13).
+- **The `art-reviewer` agent's output rule is stricter.** Its report must be exactly the four parts, with no opening sentence and no `Commands run`, `Files written` or `Could not do` sections (seen in its first trial, issue #13). A second trial still added a process-notes block after the verdict, so the verdict line is now stated to end the reply.
 
 ## 0.11.0 - 2026-11-24
 
