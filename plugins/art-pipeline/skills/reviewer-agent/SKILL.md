@@ -30,13 +30,17 @@ it yourself, because the human approved those words.
 
 ## 2. What the reviewer returns
 
-- a verdict, `pass` or `fail`;
-- a paragraph of at least 40 characters saying what it saw for each objective, naming concrete things;
-- a list of mismatches.
+- one `O<n>: PASS|FAIL` line per objective, with what the image shows and the image path;
+- `Mismatches:` one line each, with what to change (a question of taste comes as lettered options with
+  one suggestion, and is for the human, not for the maker to settle);
+- `seen:` a paragraph of at least 40 characters naming concrete things it saw;
+- a last line `VERDICT: pass` or `VERDICT: fail`. Anything it could not see is `NOT SEEN`, never a pass.
 
 ## 3. Record it
 
-The main session records the verdict with `--reviewer`, copying the reviewer's words unchanged:
+The main session records the verdict with `--reviewer`, copying the reviewer's words unchanged. Use
+`--verdict pass` only when the reviewer's last line is `VERDICT: pass`; otherwise record `--verdict fail`
+(a fail record still shows the work was looked at, and the gate stays closed until a new reviewer passes it):
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/review.py" record --model <model path> --sheet <sheet.png> \
