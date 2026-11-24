@@ -857,6 +857,45 @@ try:
                and "RESULT idle: FAIL worst overlap 0.000" in out_diff and "RESULT rest pose: PASS" in out_diff
                and os.path.isfile(os.path.join(d, "compare_u_1.png")),
                "frame sheets: compare passes identical sheets and fails a pose that moved, naming the clip")
+
+    # reviewer records: skip only the Read requirement
+    def reviewer_record(d, name="art-reviewer"):
+        now = time.time()
+        write(d, "art/hero.fbx", "m", mtime=now - 100)
+        sheet = write(d, "docs/art/sheets/hero.png", "png", mtime=now - 50)
+        rc, _, err = run([sys.executable, REVIEW, "record", "--model", "art/hero.fbx", "--sheet",
+                          "docs/art/sheets/hero.png", "--reviewer", name, "--verdict", "pass", "--seen", SEEN_TXT], cwd=d)
+        return rc, err, sheet
+
+    d = mkrepo(); hook("start", d)
+    rc_r, err_r, _s = reviewer_record(d)
+    rc, o = gate(d)
+    report(rc_r == 0 and rc == 0 and o == {}, "reviewer record passes the gate with no Read of the sheet")
+
+    d = mkrepo(); hook("start", d)
+    rc_r, err_r, sheet = reviewer_record(d)
+    write(d, "docs/art/sheets/hero.png", "changed png", mtime=time.time() - 10)
+    rc, o = gate(d)
+    report(rc_r == 0 and o.get("decision") == "block" and "changed since reviewer art-reviewer" in o["reason"],
+           "reviewer record whose sheet changed afterwards is refused")
+
+    d = mkrepo(); hook("start", d)
+    now = time.time()
+    write(d, "art/hero.fbx", "m", mtime=now - 100)
+    write(d, "docs/art/sheets/hero.png", "png", mtime=now - 50)
+    record(d, "art/hero.fbx", "docs/art/sheets/hero.png")
+    rc, o = gate(d)
+    report(o.get("decision") == "block" and "not opened" in o["reason"],
+           "a record without a reviewer and without a Read is still refused")
+
+    d = mkrepo(); hook("start", d)
+    now = time.time()
+    write(d, "art/hero.fbx", "m", mtime=now - 100)
+    write(d, "docs/art/sheets/hero.png", "png", mtime=now - 50)
+    rc, _, err = run([sys.executable, REVIEW, "record", "--model", "art/hero.fbx", "--sheet", "docs/art/sheets/hero.png",
+                      "--reviewer", "  ", "--verdict", "pass", "--seen", SEEN_TXT], cwd=d)
+    report(rc != 0 and "--reviewer" in err and not glob.glob(os.path.join(d, "**", "*.review.json"), recursive=True),
+           "an empty --reviewer name is rejected and writes no record")
 finally:
     for t in TMP:
         shutil.rmtree(t, ignore_errors=True)
