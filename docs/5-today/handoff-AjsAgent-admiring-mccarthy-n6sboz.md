@@ -7,7 +7,8 @@ Split the `art-pipeline` skill into separate skills that each work alone, and ma
 - The default branch is `AjsAgent/standalone`. It already has `frame-sheet-compare` as its own skill (PR #7).
 - This branch adds the merged `angle-review-sheets` skill and the proposal page `docs/plans/split-art-pipeline-proposal.html`.
 - Done: `art-brief-spec` (#9, commit `1822c6a`), `model-build` (#10) and `engine-import` (#12) (both inside autosave commits, so no separate commit), `rig-and-clips` (#11, commit `1d71ec5`). Six broken links were fixed in `7714249`.
-- In progress: #13, the `reviewer-agent` skill and the `--reviewer` flag on `review.py record`, `clip` and `frames`. A builder is working on it.
+- Done for #13: `agents/art-reviewer.md`, a copy of the house-rules `reviewer` tuned for art, and the `reviewer-agent` skill text that spawns it. It has not been spawned yet, because plugin agents load at session start.
+- Blocked: the `--reviewer` flag on `review.py record`, `clip` and `frames`, its gate rule in `artlib.py` and its `verify.py` checks. The design-loop hook closes code edits until aj types `Build plan approved: reviewer-agent` from inside this repo.
 - Not started: #14, slimming `art-pipeline` to a front door, raising the plugin version and updating the docs tiers. `stages.md` and `tooling-and-traps.md` still hold the moved text until then.
 
 ## The next step

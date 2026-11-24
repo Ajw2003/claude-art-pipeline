@@ -10,7 +10,9 @@ no context judges only what the picture shows, against the objectives the human 
 
 ## 1. Spawn the reviewer
 
-Use the Agent tool, with a fresh context. Give it only:
+Use the Agent tool with `subagent_type` `art-pipeline:art-reviewer` (the plugin's agent, extended from
+`house-rules:reviewer` and tuned for pictures; `agents/art-reviewer.md`), which starts with a fresh context.
+Name its mode in the prompt: `sheet`, `frames`, `angles` or `motion`. Give it only:
 
 - the path of the sheet or sheets to open (model review sheet, frame sheet, compare page, angle sheet);
 - the objectives and reference paths from the approved spec (`docs/art/specs/<id>.json`);

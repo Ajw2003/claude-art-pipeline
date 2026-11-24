@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`art-reviewer` agent for art and visuals** (`agents/art-reviewer.md`, issue #13). A copy of the house-rules
+  `reviewer`, kept read-only and findings-only, retuned for pictures: modes `sheet`, `frames`, `angles` and
+  `motion`; opens every image beside its reference; one `O<n>: PASS|FAIL` line per objective in the shape the
+  visual loop uses; `NOT SEEN` is never a pass. Loads in a new session. The `reviewer-agent` skill now spawns it.
+
 - **art-pipeline is being split into single-purpose skills (issue #8).** Four new skills each work alone:
   `art-brief-spec` (stages 0 to 3 and 8), `model-build` (stage 4), `rig-and-clips` (stages 5 and 6) and
   `engine-import` (stage 7, a project-agnostic Unity importer pattern). `angle-review-sheets` is merged in beside
