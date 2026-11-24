@@ -36,17 +36,19 @@ input[type=checkbox]{margin-top:4px;width:18px;height:18px;accent-color:var(--ac
   <span class="tag">Proposal</span>
   <h1>Split the art pipeline into single-purpose skills</h1>
 </header>
-<p class="lead" data-basic="summary">Cut what is left of the art-pipeline skill into four stage skills plus a reviewer skill, keeping art-pipeline as a short front door. Three choices below need your answer.</p>
+<p class="lead" data-basic="summary">Split the remaining art-pipeline skill into four stage skills and a reviewer skill, and keep art-pipeline as a short front door. Three choices below need your answer.</p>
 
 <section data-basic="exists">
   <h2>What already exists</h2>
-  <div class="card"><p><b class="done">Done:</b> <code>frame-sheet-compare</code> is already its own skill (PR #7, merged to the default branch).</p></div>
-  <div class="card"><p><b class="done">Done:</b> <code>angle-review-sheets</code> is merged into the working branch. It only adds new files, so nothing conflicted.</p></div>
-  <div class="card"><p><b>Stays put:</b> the hooks and gate scripts (<code>hook.py</code>, <code>approve.py</code>, <code>review.py</code>) are shared by every skill, so they remain at plugin level. Only two files point at skill folders, and both already point at <code>frame-sheet-compare</code>.</p></div>
+  <div class="card"><p><b class="done">Done:</b> <code>frame-sheet-compare</code> is already its own skill (pull request #7, "matched frame sheets", merged to the default branch).</p></div>
+  <div class="card"><p><b class="done">Done:</b> <code>angle-review-sheets</code> is merged into this session's branch, <code>AjsAgent/admiring-mccarthy-n6sboz</code>. It only adds new files, so nothing conflicted.</p></div>
+  <div class="card"><p><b>Stays put:</b> the hooks and gate scripts (<code>hook.py</code>, <code>approve.py</code>, <code>review.py</code>) are shared by every skill, so they remain at plugin level. Only two files point at skill folders (<code>scripts/artlib.py</code> and <code>scripts/verify.py</code>), and both already point at <code>frame-sheet-compare</code>.</p></div>
+  <div class="card"><p><b>Terms:</b> the stop gate is the check that blocks finishing until a review is recorded. <code>verify.py</code> is the plugin's own test script.</p></div>
 </section>
 
 <section data-basic="suggested">
   <h2>What I suggest</h2>
+  <p>The stages today: 0 protect, 1 brief and style bible, 2 reference, concept and spec, 3 asset data, 4 model, 5 rig, 6 clips, 7 engine, 8 docs and commit. Rule one: no art is made until a human approves a spec with real-world reference. Rule two: nothing is done until someone has looked at a picture of it.</p>
   <svg viewBox="0 0 720 300" role="img" aria-label="art-pipeline becomes a front door that points to four new stage skills and a reviewer skill, beside two skills that already exist">
     <rect x="240" y="10" width="240" height="52" rx="6" fill="none" stroke="var(--accent)" stroke-width="2"/>
     <text x="360" y="32" text-anchor="middle" font-weight="600">art-pipeline (front door)</text>
@@ -58,7 +60,7 @@ input[type=checkbox]{margin-top:4px;width:18px;height:18px;accent-color:var(--ac
       <rect x="10" y="112" width="160" height="64" rx="6"/><rect x="170" y="112" width="160" height="64" rx="6"/>
       <rect x="330" y="112" width="160" height="64" rx="6"/><rect x="490" y="112" width="160" height="64" rx="6"/>
     </g>
-    <text x="90" y="136" text-anchor="middle" font-weight="600">art-brief-spec</text><text x="90" y="154" text-anchor="middle" fill="var(--mute)">stages 0 to 3</text>
+    <text x="90" y="136" text-anchor="middle" font-weight="600">art-brief-spec</text><text x="90" y="154" text-anchor="middle" fill="var(--mute)">stages 0 to 3 and 8</text>
     <text x="250" y="136" text-anchor="middle" font-weight="600">model-build</text><text x="250" y="154" text-anchor="middle" fill="var(--mute)">stage 4</text>
     <text x="410" y="136" text-anchor="middle" font-weight="600">rig-and-clips</text><text x="410" y="154" text-anchor="middle" fill="var(--mute)">stages 5 and 6</text>
     <text x="570" y="136" text-anchor="middle" font-weight="600">engine-import</text><text x="570" y="154" text-anchor="middle" fill="var(--mute)">stage 7</text>
@@ -69,15 +71,15 @@ input[type=checkbox]{margin-top:4px;width:18px;height:18px;accent-color:var(--ac
     <rect x="470" y="214" width="240" height="64" rx="6" fill="none" stroke="var(--new)" stroke-width="2"/>
     <text x="590" y="238" text-anchor="middle" font-weight="600">reviewer-agent</text><text x="590" y="256" text-anchor="middle" fill="var(--mute)">new, fresh-context verdicts</text>
   </svg>
-  <p>Orange is new or moved. Green already exists. Each skill can be used alone.</p>
+  <p>Orange outlines are new or moved. Green outlines already exist. Each skill can be used on its own.</p>
   <div class="scroll"><table>
     <thead><tr><th>Skill</th><th>Takes from today's skill</th></tr></thead>
     <tbody>
       <tr><td><b>art-brief-spec</b></td><td>Rule one, the unattended section, how-to steps 1 to 4 and 10, <code>style-bible-template.md</code>, <code>spec-template.md</code>, stages 0 to 3 and 8.</td></tr>
       <tr><td><b>model-build</b></td><td><code>render_views.py</code>, <code>review_sheet.py</code>, <code>setup_bpy.sh</code>, the Blender-module and blueprint notes, stage 4.</td></tr>
       <tr><td><b>rig-and-clips</b></td><td>The rigging and clips notes, stages 5 and 6, and <code>examples/anim-review/</code>.</td></tr>
-      <tr><td><b>engine-import</b></td><td>The Unity engine notes and stage 7. Needs a decision, see choice C.</td></tr>
-      <tr><td><b>reviewer-agent</b></td><td>New. A reviewer with fresh context gets the sheet and the approved objectives, and returns a verdict.</td></tr>
+      <tr><td><b>engine-import</b></td><td>The Unity engine notes and stage 7. Needs your decision; see choice C below.</td></tr>
+      <tr><td><b>reviewer-agent</b></td><td>New. A reviewer starting with fresh context receives the review sheet and the approved objectives, and returns a verdict.</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -90,13 +92,13 @@ input[type=checkbox]{margin-top:4px;width:18px;height:18px;accent-color:var(--ac
     <p>Other option: delete it and rely on the stage skills alone.</p>
   </div>
   <div class="card opt">
-    <p><b>B. How does the Stop gate count a reviewer's look?</b></p>
-    <p class="sug"><b>Suggested:</b> the reviewer returns its verdict, and the main session records it with a new <code>--reviewer</code> flag. The gate still wants a verdict newer than the model.</p>
-    <p>Other option: leave the gate alone, so the main session must also open every sheet itself.</p>
+    <p><b>B. How should the Stop gate count a reviewer's check of a sheet?</b></p>
+    <p class="sug"><b>Suggested:</b> the reviewer returns its verdict, and the main session records it with a new <code>--reviewer</code> flag on <code>review.py record</code>. The gate still wants a verdict newer than the last change to the 3D model.</p>
+    <p>Other option: leave the gate as it is, so the main session would still have to open every review sheet itself.</p>
   </div>
   <div class="card opt">
     <p><b>C. Where does the Blender-to-Unity import work live?</b></p>
-    <p class="sug"><b>Suggested:</b> I look in the PlunderSpell repo first. My search of these branches found only the stage 7 text and trap notes.</p>
+    <p class="sug"><b>Suggested:</b> base engine-import on PlunderSpell's importers. A code search found <code>ArtBibleModelImporter.cs</code>, <code>GroundsImportSettings.cs</code> and <code>CastleMeshImportSettings.cs</code> there, under <code>Assets/_Project/Scripts/Editor/</code>. This repo's branches hold only the stage 7 text.</p>
     <p>Other option: write engine-import from that text alone and add PlunderSpell's work later.</p>
   </div>
 </section>
@@ -106,19 +108,19 @@ input[type=checkbox]{margin-top:4px;width:18px;height:18px;accent-color:var(--ac
   <ol data-basic="steps">
     <li>I create one commit per skill, moving files with <code>git mv</code> so history follows.</li>
     <li>After each commit I run <code>verify.py</code> and quote the result.</li>
-    <li>I add the reviewer-agent skill and wire the gate as you choose in B.</li>
-    <li>I bump the plugin version, add a changelog line and push the branch.</li>
+    <li>I add the reviewer-agent skill and set up the stop gate as you choose in choice B.</li>
+    <li>I raise the plugin version number, add a changelog line and push the branch.</li>
   </ol>
-  <div class="card" data-basic="done-when"><p>Done when: every skill runs alone, <code>verify.py</code> shows no new failures, and the angle-review and frame-sheet skills are untouched.</p></div>
+  <div class="card" data-basic="done-when"><p>Done when: every skill runs alone, <code>verify.py</code> shows no new failures, and the angle-review-sheets and frame-sheet-compare skills are unchanged.</p></div>
 </section>
 
 <section>
   <h2>Your checklist</h2>
   <ul class="check" data-basic="checklist">
-    <li><label><input type="checkbox" id="c0"><span>Approve the five-way cut shown above</span></label></li>
-    <li><label><input type="checkbox" id="c1"><span>Choice A: keep art-pipeline as the front door, or say otherwise</span></label></li>
-    <li><label><input type="checkbox" id="c2"><span>Choice B: the <code>--reviewer</code> flag, or say otherwise</span></label></li>
-    <li><label><input type="checkbox" id="c3"><span>Choice C: look in PlunderSpell first, or say otherwise</span></label></li>
+    <li><label><input type="checkbox" id="c0"><span>Approve the split into five skills shown above (four stage skills and the reviewer)</span></label></li>
+    <li><label><input type="checkbox" id="c1"><span>Choice A: keep art-pipeline as the front door, or tell me what you want instead</span></label></li>
+    <li><label><input type="checkbox" id="c2"><span>Choice B: record reviewer verdicts with the <code>--reviewer</code> flag, or tell me what you want instead</span></label></li>
+    <li><label><input type="checkbox" id="c3"><span>Choice C: look in the PlunderSpell repo first, or tell me what you want instead</span></label></li>
   </ul>
 </section>
 </main>
