@@ -867,28 +867,32 @@ try:
                           "docs/art/sheets/hero.png", "--reviewer", name, "--verdict", "pass", "--seen", SEEN_TXT], cwd=d)
         return rc, err, sheet
 
-    d = mkrepo(); hook("start", d)
+    def rv_gate(d):   # own session id: the per-user repo list of session s1 holds repos from earlier checks
+        rc, out, _ = hook("gate", d, session="rv")
+        return rc, (json.loads(out) if out.strip() else {})
+
+    d = mkrepo(); hook("start", d, session="rv")
     rc_r, err_r, _s = reviewer_record(d)
-    rc, o = gate(d)
+    rc, o = rv_gate(d)
     report(rc_r == 0 and rc == 0 and o == {}, "reviewer record passes the gate with no Read of the sheet")
 
-    d = mkrepo(); hook("start", d)
+    d = mkrepo(); hook("start", d, session="rv")
     rc_r, err_r, sheet = reviewer_record(d)
     write(d, "docs/art/sheets/hero.png", "changed png", mtime=time.time() - 10)
-    rc, o = gate(d)
+    rc, o = rv_gate(d)
     report(rc_r == 0 and o.get("decision") == "block" and "changed since reviewer art-reviewer" in o["reason"],
            "reviewer record whose sheet changed afterwards is refused")
 
-    d = mkrepo(); hook("start", d)
+    d = mkrepo(); hook("start", d, session="rv")
     now = time.time()
     write(d, "art/hero.fbx", "m", mtime=now - 100)
     write(d, "docs/art/sheets/hero.png", "png", mtime=now - 50)
     record(d, "art/hero.fbx", "docs/art/sheets/hero.png")
-    rc, o = gate(d)
+    rc, o = rv_gate(d)
     report(o.get("decision") == "block" and "not opened" in o["reason"],
            "a record without a reviewer and without a Read is still refused")
 
-    d = mkrepo(); hook("start", d)
+    d = mkrepo(); hook("start", d, session="rv")
     now = time.time()
     write(d, "art/hero.fbx", "m", mtime=now - 100)
     write(d, "docs/art/sheets/hero.png", "png", mtime=now - 50)
