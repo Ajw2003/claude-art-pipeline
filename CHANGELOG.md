@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Why edits to the agent did not show up.** An installed plugin runs from a cached copy made at install time, not from the repo, so a repo edit reaches the agent only after `claude plugin update art-pipeline@claude-art-pipeline` and a restart (found in issue #13; the cache held 0.10.0 until the update copied 0.11.0).
+
 - **The `reviewer-agent` skill is sharper.** A reviewer's objectives are now the spec's `check` strings, copied word for word, so two reviewers judge the same thing; the skill also lists the reviewer's four-part reply and says a `VERDICT: fail` is recorded as `--verdict fail` (issue #13).
 
 - **Finding: reviewers disagree on a loose objective.** The real `art-reviewer` graded "the render matches the concept's silhouette and hat" FAIL twice, and a stand-in reading the same file graded it PASS on the same sheet. Objectives given to a reviewer should be measurable (issue #13). The `reviewer-agent` skill now says the objectives are the spec's `check` strings copied word for word, lists the reviewer's four-part reply, and says to record `--verdict fail` when the reviewer's last line is `VERDICT: fail`.
