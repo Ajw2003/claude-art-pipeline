@@ -83,13 +83,26 @@ Read this session.
 # Unity, Edit mode only (never Play): a prefab, a model file or a folder of prefabs, optionally =<controller or clip file>
 bash scripts/unity_frame_sheets.sh --project <Unity project> --out docs/art/frames/<id> \
      [--gap Hand.L Hand.R] [--dir <prop bone>] <entry> [<entry> ...]
-# Blender: the clip file's actions on the model's armature; also writes <name>_rest.json
-blender -b --factory-startup -P scripts/blender_frame_sheets.py -- --model <model.fbx> --clips <clip file.fbx> \
-     --out docs/art/frames/<id> --name <name> [--gap Hand.L Hand.R] [--dir <prop bone>]
+# Blender: the clip file's actions on the model's armature, matched to the Unity sheet; also writes <name>_rest.json
+blender -b --factory-startup -P scripts/blender_frame_sheets.py -- --model <model> --clips <clip file.fbx> \
+     --out docs/art/frames/<id> --name <name> --match docs/art/frames/<id>/raw/<unity name>.json \
+     [--gap Hand.L Hand.R] [--dir <prop bone>]
 python scripts/frame_sheet_pages.py label docs/art/frames/<id>    # after Blender; the Unity script labels its own
+python scripts/frame_sheet_pages.py compare docs/art/frames/<id> <unity name> <name>_blender  # the controlled comparison
 python scripts/frame_sheet_pages.py pages docs/art/frames/<id>    # overview pages for many models
 python scripts/frame_sheet_pages.py probes docs/art/frames/<id>   # bone gap and prop direction, Unity beside Blender
 ```
+
+**The two sheets are a controlled comparison.** Both renderers read one camera, light and layout
+from `scripts/frame_camera.txt` (field of view, pitch, the two yaws, framing, background, ambient and
+two directional lights), so change it there and never in a renderer. With `--match`, Blender also
+takes the Unity sheet's framing height, row order and loop flags, and both sample every moment on a
+whole key: between keys each engine interpolates its own way. `compare` then shows every row three
+times (Unity, Blender, and both silhouettes laid over each other: red where only Unity has the
+model, cyan only Blender) and scores each cell as the share of each silhouette within 2 pixels of
+the other. Matched sheets of the same clip file score 0.99 or more; a limb, a prop or a body in
+another place scores well under 0.95 and fails the row. A matched pair that fails means the engine
+does not play what Blender shows: find out why before judging the motion itself.
 
 Render the clip file on its own skeleton too (enter the clip file itself as a Unity entry): the
 sheets differ where the engine changes the motion. Then open both sheets, and record the look:
@@ -112,7 +125,9 @@ on 14 enemies followed an empty-handed arm swing, and the Crusader Boss's clip f
 exported on another rest pose (hands 79 and 85 degrees off), so his greatsword was 65 degrees off
 in game. Every one of those clips had passed its checks. Start with its `report.md`.
 
-The Unity renderer keeps three details that each cost a session: Humanoid clips are sampled with
+The Unity renderer keeps four details that each cost a session: URP previews a portrait target with
+the field of view across its width, so a 240x320 cell drew the model at three quarters of its size
+(the cell is rendered square and its middle cut out); Humanoid clips are sampled with
 `AnimationMode.SampleAnimationClip` (plain `SampleAnimation` and a PlayableGraph leave the pose
 frozen in a preview scene); `SkinnedMeshRenderer.forceMatrixRecalculationPerRender` is set, or every
 render in one Editor frame shows the first pose; and it renders one entry per call and resumes,

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0 - 2026-11-24
+
+From PlunderSpell's Generic-rig check, where the Unity and Blender frame sheets of the same clip file
+could not be compared: Blender's side view showed the model's other side, its lens was 40 degrees
+against Unity's 30, its camera sat lower, its rows were in another order and it sampled other moments.
+
+- **One camera for both renderers**: `scripts/frame_camera.txt` holds the field of view, pitch, yaws,
+  framing, background, ambient and lights; `unity_frame_sheets.sh` copies it into the Unity config and
+  `blender_frame_sheets.py` reads it, turned into Blender's axes. Blender now renders with EEVEE, the
+  Standard view transform, two shadowless suns and the flat ambient, so the two sheets look alike.
+- **`blender_frame_sheets.py --match <Unity raw .json>`**: the Unity sheet's framing height, row order
+  and loop flags. Both renderers sample on whole keys.
+- **`frame_sheet_pages.py compare`**: Unity, Blender and the two silhouettes laid over each other for
+  every row, each cell scored (share of each silhouette within 2 pixels of the other); one RESULT
+  line per clip, exit 1 under `--min-overlap` (default 0.95). Matched sheets score 0.99 or more.
+- Unity trap fixed: URP previews a portrait target with the field of view across its width, so every
+  Unity sheet drew the model at three quarters of its size. Portrait cells now render square and crop.
+- `verify.py`: 109 checks.
+
 ## 0.8.0 - 2026-11-22
 
 - **Unattended mode can be switched on by typing `unattended on`** (the house-rules plugin saves it
