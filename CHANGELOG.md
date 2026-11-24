@@ -2,10 +2,11 @@
 
 ## Unreleased
 
-- **The skill split is proposed, and the angle-review skill is merged in.** `angle-review-sheets` (branch
-  `AjsAgent/angle-review-skill`) joins the default branch's `frame-sheet-compare`. `docs/plans/split-art-pipeline-proposal.html`
-  lays out the cut of what remains in `art-pipeline` (art-brief-spec, model-build, rig-and-clips, engine-import,
-  reviewer-agent) and asks for three decisions. No skill files have moved yet.
+- **art-pipeline is being split into single-purpose skills (issue #8).** Four new skills each work alone:
+  `art-brief-spec` (stages 0 to 3 and 8), `model-build` (stage 4), `rig-and-clips` (stages 5 and 6) and
+  `engine-import` (stage 7, a project-agnostic Unity importer pattern). `angle-review-sheets` is merged in beside
+  `frame-sheet-compare`. Files moved with `git mv`; links fixed; `verify.py` stays at 109 of 109. `art-pipeline`
+  still holds the moved text until it is slimmed to a front door. Plan: `docs/plans/split-art-pipeline-proposal.html`.
 
 ## 0.10.0 - 2026-11-24
 
