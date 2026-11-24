@@ -8,16 +8,16 @@ Split the `art-pipeline` skill into separate skills that each work alone, and ma
 - This branch adds the merged `angle-review-sheets` skill and the proposal page `docs/plans/split-art-pipeline-proposal.html`.
 - Done: `art-brief-spec` (#9, commit `1822c6a`), `model-build` (#10) and `engine-import` (#12) (both inside autosave commits, so no separate commit), `rig-and-clips` (#11, commit `1d71ec5`). Six broken links were fixed in `7714249`.
 - Done for #13: `agents/art-reviewer.md`, a copy of the house-rules `reviewer` tuned for art, and the `reviewer-agent` skill text that spawns it. It has not been spawned yet, because plugin agents load at session start.
-- Blocked: the `--reviewer` flag on `review.py record`, `clip` and `frames`, its gate rule in `artlib.py` and its `verify.py` checks. The design-loop hook closes code edits until aj types `Build plan approved: reviewer-agent` from inside this repo.
-- Done for #14 (docs part): `art-pipeline` is a ~60-line front door; `stages.md` and `tooling-and-traps.md` are deleted. `verify.py` 109 of 109 after it. Still open: the `plugin.json` version bump to 0.11.0, refused with other code edits.
-- Build approved: aj typed `Build plan approved: reviewer-agent`; a builder is adding the `--reviewer` flag, the `artlib.py` rule and four `verify.py` checks (result not yet in). Decision logged in `docs/6-decisions/Decisions.md`.
+- Was blocked, now done: the `--reviewer` flag on `review.py record`, `clip` and `frames`, its gate rule in `artlib.py` and its `verify.py` checks. The design-loop hook closes code edits until aj types `Build plan approved: reviewer-agent` from inside this repo.
+- Done for #14 (docs part): `art-pipeline` is a ~60-line front door; `stages.md` and `tooling-and-traps.md` are deleted. `verify.py` 109 of 109 after it. 
+- #13 code is built: `--reviewer` on `record`, `clip`, `frames`, the gate rule (`opened_problem` in `artlib.py`) and checks 110 to 113. `verify.py`: all 113 checks passed. Plugin version 0.11.0. Decision in `docs/6-decisions/Decisions.md`.
 - Agent trial: `art-pipeline@claude-art-pipeline` is now installed (`claude plugin install`), but this session still reports `art-pipeline:art-reviewer` not found, because agents load at session start. Spawn it in a new session.
 
 ## The next step
 When #13 lands, do #14, then run `verify.py`, quote the result and push. aj has also been asked whether to move the scratch clone `/home/user/plunderspell` to `/home/user/_to_delete/`, because the Stop gate flags an approval file that clone's checkout wrote.
 
 ## What is unverified
-- `verify.py` passes 109 of 109 on the commits before #13. It has not been run on the finished split.
+- `verify.py` passes 113 of 113 on the finished split. The `[reviewed by NAME]` status line and the `clip` `--reviewer` path were never run; `art-pipeline:art-reviewer` has never been spawned (new session needed).
 - The `engine-import` C# template was never compiled: no Unity, `dotnet`, `mcs` or `csc` is on this machine, and a compile against hand-written stubs would prove nothing.
 - `--reviewer` is an honesty claim the gate cannot prove; the recorded sheet hash ties the verdict to one image.
 - No Blender-to-Unity import code is on this repo's branches. A code search of `Ajw2003/PlunderSpell` (attached read-only) found `ArtBibleModelImporter.cs`, `GroundsImportSettings.cs` and `CastleMeshImportSettings.cs` under `Assets/_Project/Scripts/Editor/`. All three files were fetched in full through the GitHub contents API (483, 85 and 32 lines) and skimmed for structure; they have not been studied line by line. All three are Unity `AssetPostprocessor` classes tied to PlunderSpell's own folders and namespace (`Assets/Models/ArtBible/`, `Plunderspell.EditorTools`): rig type per model, URP materials from baked maps, read/write meshes, axis conversion. An engine-import skill would need these generalised, because the `art-pipeline` skill says to stay project-agnostic and never attach another repository for examples. The local clone of that repo was still downloading (2.9 GB so far) and is not needed for the plan.

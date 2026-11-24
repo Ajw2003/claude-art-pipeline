@@ -1,12 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 - 2026-11-24
+
+- **`--reviewer NAME` on `review.py record`, `clip` and `frames` (issue #13).** The record stores the reviewer
+  and the sha256 of each sheet; an empty name is refused. For a record with a reviewer the Stop gate no longer
+  asks that the sheet was opened (Read) this session, but still needs a pass verdict, a record newer than the
+  change, an existing sheet, and a sheet whose current sha256 equals the recorded one (a record with no
+  recorded hash is refused too). A record without a reviewer keeps every check. `review.py status` prints
+  `[reviewed by NAME]`. Four new `verify.py` checks: 113 of 113.
 
 - **`art-pipeline` is a front door (issue #14).** `skills/art-pipeline/SKILL.md` shrank from 212 lines to
   about 60: rule one, rule two, the stage map and a pointer to every stage skill. `references/stages.md` and
   `references/tooling-and-traps.md` are deleted; every part of them already lives in `art-brief-spec`,
-  `model-build`, `rig-and-clips` and `engine-import`. The version in `plugin.json` is still 0.10.0 and
-  becomes 0.11.0 when code edits open. The `--reviewer` flag (issue #13) also waits for that.
+  `model-build`, `rig-and-clips` and `engine-import`. Plugin version raised to 0.11.0.
 
 - **`art-reviewer` agent for art and visuals** (`agents/art-reviewer.md`, issue #13). A copy of the house-rules
   `reviewer`, kept read-only and findings-only, retuned for pictures: modes `sheet`, `frames`, `angles` and
