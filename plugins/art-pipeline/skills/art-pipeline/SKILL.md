@@ -152,7 +152,7 @@ A project without Unity or Blender sets
 4. **Decisions that are the user's go to the user**, with a proposal page or a question: the look,
    anything that contradicts an approved plan (for example a death animation when the plan says the
    body vanishes). Defaults that are just craft, you choose and say so.
-5. **Set up Blender as a Python module**: `sh scripts/setup_bpy.sh` (from this skill's folder).
+5. **Set up Blender as a Python module**: `sh ../model-build/scripts/setup_bpy.sh`.
    It finds a Python that matches a `bpy` wheel and installs it with Pillow. Cycles on CPU only:
    EEVEE and Workbench abort without a GPU. `references/tooling-and-traps.md` has the rest.
 6. **Build by blueprint, never by hand-edit.** Fix the generator, not its output, so a rebuild
@@ -160,8 +160,8 @@ A project without Unity or Blender sets
 7. **Render and compose the review sheet** for every model you touch:
 
    ```bash
-   python3.11 scripts/render_views.py <model.fbx|.glb|.blend> --out <dir>
-   python3 scripts/review_sheet.py --concept <concept.png> --views <dir> --title "<Name>" --out <sheet.png>
+   python3.11 ../model-build/scripts/render_views.py <model.fbx|.glb|.blend> --out <dir>
+   python3 ../model-build/scripts/review_sheet.py --concept <concept.png> --views <dir> --title "<Name>" --out <sheet.png>
    ```
 
    Projects with their own renderer use it instead; the gate only

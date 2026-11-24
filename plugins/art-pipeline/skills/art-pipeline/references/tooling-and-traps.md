@@ -6,7 +6,7 @@ No Blender install and no `blender` binary: `pip install bpy` gives Blender as a
 module, and scripts run as `python3.11 script.py`, never `blender --background --python`.
 
 - **Match the wheel to the interpreter.** `bpy` 5.0.x ships for CPython 3.11 only; 5.1 and later
-  for 3.13. Plain `python3` is often neither. `scripts/setup_bpy.sh` finds one that works,
+  for 3.13. Plain `python3` is often neither. `../model-build/scripts/setup_bpy.sh` finds one that works,
   installs `bpy` and Pillow into it, and prints the command prefix to use.
 - **Cycles on CPU only** in a container without a GPU. EEVEE and Workbench do not raise without a
   GPU or `libEGL.so.1`: they abort the interpreter. Freestyle crashes headless too (its auto-created
