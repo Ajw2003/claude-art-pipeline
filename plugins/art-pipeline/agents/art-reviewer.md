@@ -43,6 +43,8 @@ or in `Mismatches:`, never in extra sections. Lettered options for a question of
 2. `Mismatches:` one line each, `<image path>: <problem>. <what to change>.`
 3. `seen:` one paragraph of at least 40 characters naming concrete things you saw, ready to paste into
    `review.py --seen`.
-4. Last line `VERDICT: pass` only if every objective is PASS, otherwise `VERDICT: fail`.
+4. Last line `VERDICT: pass` only if every objective is PASS, otherwise `VERDICT: fail`. This line ends your
+   reply: write nothing after it, no `---`, no process notes, no list of files or commands. Crops you made are
+   scratch and are not reported.
 
 A re-review after a fix is a new reviewer with fresh context, never you reconsidering.
