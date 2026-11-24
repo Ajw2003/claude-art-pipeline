@@ -102,7 +102,7 @@ word. The record is refused, and the stop blocked, while the comparison lists a 
 degrees off, unless `--rest-ok` says why the difference does no harm. Fix it by re-exporting the
 clips on the model's own rest pose.
 
-What this catches, from a real review: `examples/anim-review/` (2026-11-17). Weapons
+What this catches, from a real review: `../rig-and-clips/examples/anim-review/` (2026-11-17). Weapons
 on 14 enemies followed an empty-handed arm swing, and the Crusader Boss's clip file had been
 exported on another rest pose (hands 79 and 85 degrees off), so his greatsword was 65 degrees off
 in game. Every one of those clips had passed its checks. Start with its `report.md`.
