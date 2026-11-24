@@ -1,7 +1,7 @@
 # Frame sheets reproduced from the plugin, against PlunderSpell (2026-11-17)
 
 These were made by the skill's own scripts, not PlunderSpell's, to show that they reproduce the
-review in `plugins/art-pipeline/skills/art-pipeline/examples/anim-review/`. The Unity Editor was the
+review in `plugins/art-pipeline/skills/rig-and-clips/examples/anim-review/`. The Unity Editor was the
 main PlunderSpell checkout's. That checkout already held an uncommitted re-export of
 `Crusader_Signature.fbx`, so the Unity sheets show the clips after the fix. The first Blender run
 used the committed (broken) file.

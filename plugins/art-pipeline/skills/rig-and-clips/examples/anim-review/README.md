@@ -2,7 +2,7 @@
 
 PlunderSpell, 2026-11-17. Every enemy clip had passed its import and its checks. Rendering every
 clip as frame sheets, in Unity and in Blender, found two faults nobody had seen. `report.md` is the
-review as written then; it names PlunderSpell's own paths and scripts, which are now this skill's
+review as written then; it names PlunderSpell's own paths and scripts, which are now the frame-sheet-compare skill's
 `scripts/`.
 
 | File | What it shows |

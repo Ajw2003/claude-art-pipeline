@@ -102,7 +102,7 @@ word. The record is refused, and the stop blocked, while the comparison lists a 
 degrees off, unless `--rest-ok` says why the difference does no harm. Fix it by re-exporting the
 clips on the model's own rest pose.
 
-What this catches, from a real review: `examples/anim-review/` (PlunderSpell, 2026-11-17). Weapons
+What this catches, from a real review: `examples/anim-review/` (2026-11-17). Weapons
 on 14 enemies followed an empty-handed arm swing, and the Crusader Boss's clip file had been
 exported on another rest pose (hands 79 and 85 degrees off), so his greatsword was 65 degrees off
 in game. Every one of those clips had passed its checks. Start with its `report.md`.
@@ -209,4 +209,4 @@ workers at once on one checkout, and each stages only its own paths.
 - `../art-brief-spec/references/spec-template.md`: the per-asset spec a human approves, and what counts as reference.
 - `references/tooling-and-traps.md`: Blender as a module, the blueprint pattern, rigging,
   AnimForge-style clips, engine import, and the traps that already cost a day.
-- `examples/anim-review/`: the frame-sheet review that made the step mandatory, with what it found.
+- `../rig-and-clips/examples/anim-review/`: the frame-sheet review that made the step mandatory, with what it found.
