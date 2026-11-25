@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.1 - 2026-11-24
+
+From PlunderSpell, where the Stop gate listed about 60 art files (controllers, clip `.meta` files, models) that the
+session never touched and blocked the stop on them, over and over.
+
+- **The gate lists only what this session changed.** `evaluate` now drops every art file that was already dirty at
+  the session's start and is byte-identical now (the `known` list the SessionStart hook always recorded, which only
+  the undo and build-count code used). A file that changes again afterwards, or is made afterwards, is still listed.
+- **A repo first used mid-session gets a baseline.** Running a command in, or editing a file of, another repo
+  (another checkout or worktree) used to give it no ledger, so all of its dirty art read as this session's. The
+  PreToolUse hook now records that repo's dirty art when it first registers it, before the command runs.
+- Not fixed: a baseline file that Unity or another tool rewrites mid-session counts as changed again and is listed.
+- `verify.py`: five new checks.
+
 ## 0.10.0 - 2026-11-24
 
 - **`frame-sheet-compare` is its own skill.** The Unity/Blender frame-sheet renderers, `frame_camera.txt` and
