@@ -15,6 +15,14 @@ blocked on, or undone, even when both sessions use one repo.
   approvals this session actually built under.
 - Known limit: two sessions whose Bash commands run in the same second can both claim a file the other made.
   Four new checks in `verify.py` (122 in all) cover two sessions in one repo.
+- **The version number now says 0.11.2.** The 0.11.2 code and this entry were merged (PR #17) with `plugin.json` still
+  at 0.11.1, so the marketplace never offered the update.
+- **Merging or pulling another branch no longer lists its art.** `changed_files` used `git diff --name-only <start>..HEAD`,
+  so after a merge, every art file the other branch carried looked like this session's work (PlunderSpell: a merge of 2154
+  commits listed 6112 files, 919 of them art, and blocked the stop; the commits this session made were 8 files, no art).
+  It now counts commits on the session's own line of history (`git log --first-parent --no-merges`) made after the session
+  began. The ledger gets a `began` time; a ledger without one keeps the first-parent rule and no date test. Four new checks
+  in `verify.py` (126 in all) cover a merge, a fast-forward pull, the session's own commit after a merge, and an old ledger.
 
 ## 0.11.1 - 2026-11-25
 

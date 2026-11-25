@@ -41,6 +41,12 @@ def sh_git(cwd, *a):
     subprocess.run(["git"] + list(a), cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
+def commit_at(cwd, message, when):
+    """Commits whatever is staged, dated `when` (an ISO date), so a test can say a commit was made before the session began."""
+    env = dict(os.environ, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
+    subprocess.run(["git", "commit", "-qm", message], cwd=cwd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
 def mkrepo(art=True, prod=False):
     """prod=False switches the approval gate off so the review-gate checks test only that gate."""
     d = tempfile.mkdtemp(prefix="art-pipeline-verify-")
@@ -953,6 +959,59 @@ try:
     write(other, "art/mine.fbx", "made after the baseline")
     rc4, out4, _ = hook("gate", home, session="two")
     report("art/mine.fbx" in out4 and "theirs.fbx" not in out4, "gate: art made in that repo afterwards is listed")
+
+    # Commits that ARRIVE after the session starts (a merge, a fast-forward pull) are another branch's work, not this session's, however
+    # many art files they carry. Only a commit the session itself makes is its work.
+    OLD = "2020-01-01T12:00:00"
+    d = mkrepo(art=True, prod=True)
+    sh_git(d, "checkout", "-q", "-b", "other")
+    write(d, "art/merged.fbx", "made on another branch, long before this session")
+    sh_git(d, "add", "-A")
+    commit_at(d, "other branch art", OLD)
+    sh_git(d, "checkout", "-q", "-")
+    hook("start", d, session="mrg")
+    sh_git(d, "merge", "-q", "--no-ff", "-m", "merge other", "other")
+    rc, out, _ = hook("gate", d, session="mrg")
+    report("art/merged.fbx" not in out, "gate: art that arrives by merging a branch after the session starts is not listed")
+    write(d, "art/own.fbx", "made this session")
+    sh_git(d, "add", "-A")
+    sh_git(d, "commit", "-qm", "own art")
+    rc, out, _ = hook("gate", d, session="mrg")
+    report("art/own.fbx" in out and "art/merged.fbx" not in out,
+           "gate: art the session commits itself after a merge is listed, the merged-in art still is not")
+
+    d = mkrepo(art=True, prod=True)
+    sh_git(d, "checkout", "-q", "-b", "ahead")
+    write(d, "art/pulled.fbx", "someone else's commit, fast-forwarded in")
+    sh_git(d, "add", "-A")
+    commit_at(d, "ahead art", OLD)
+    sh_git(d, "checkout", "-q", "-")
+    hook("start", d, session="ff")
+    sh_git(d, "merge", "-q", "--ff-only", "ahead")
+    rc, out, _ = hook("gate", d, session="ff")
+    report("art/pulled.fbx" not in out, "gate: art that arrives by a fast-forward pull after the session starts is not listed")
+
+    # a ledger written before `began` existed has no start time: a merge is still left out (first-parent), a commit of the session's own still counts
+    d = mkrepo(art=True, prod=True)
+    sh_git(d, "checkout", "-q", "-b", "other")
+    write(d, "art/merged.fbx", "made on another branch")
+    sh_git(d, "add", "-A")
+    commit_at(d, "other branch art", OLD)
+    sh_git(d, "checkout", "-q", "-")
+    hook("start", d, session="oldled")
+    ledger = glob.glob(os.path.join(d, ".git", "art-pipeline", "*.json"))[0]
+    with open(ledger) as fh:
+        led = json.load(fh)
+    led.pop("began", None)
+    with open(ledger, "w") as fh:
+        json.dump(led, fh)
+    sh_git(d, "merge", "-q", "--no-ff", "-m", "merge other", "other")
+    write(d, "art/own.fbx", "made this session")
+    sh_git(d, "add", "-A")
+    sh_git(d, "commit", "-qm", "own art")
+    rc, out, _ = hook("gate", d, session="oldled")
+    report("art/own.fbx" in out and "art/merged.fbx" not in out,
+           "gate: a ledger from before `began` existed still leaves merged-in art out and lists the session's own commit")
 finally:
     for t in TMP:
         shutil.rmtree(t, ignore_errors=True)
