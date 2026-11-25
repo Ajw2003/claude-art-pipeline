@@ -2,6 +2,7 @@
 
 ## 2026-11-25
 
+- 0.11.2 version fix and merge fix (PR from `AjsAgent/art-pipeline-0.11.2`): PR #17 landed the 0.11.2 code and changelog but left `plugin.json` at 0.11.1, so the marketplace never offered it; it now says 0.11.2. Also, a merge or fast-forward pull after the session started listed every art file on the other branch (PlunderSpell: 6112 files, 919 art, against the 8 files, no art that the session committed); `changed_files` now counts only commits on the session's own line made after the ledger's new `began` time. `verify.py` 126 checks pass (4 new). Not done: the Stop message still prints every listed file with no cap, which made it 128 KB in that session.
 - Stop gate fix (0.11.1, PR #16 on `AjsAgent/gate-baseline-0.11.1`): the gate lists only art changed since the session began, a repo first used mid-session is baselined, and Windows paths in commands are found. `verify.py` was 15 failing on Windows from its own bugs (real home folder leaking in, `cmd.exe`, the `python3` Store stub); it is now 118 of 118 in my run. Not merged, and the installed copy still needs `claude plugin update` and a restart after the merge.
 
 ## 2026-11-24
