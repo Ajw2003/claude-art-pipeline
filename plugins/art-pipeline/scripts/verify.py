@@ -857,6 +857,30 @@ try:
                and "RESULT idle: FAIL worst overlap 0.000" in out_diff and "RESULT rest pose: PASS" in out_diff
                and os.path.isfile(os.path.join(d, "compare_u_1.png")),
                "frame sheets: compare passes identical sheets and fails a pose that moved, naming the clip")
+
+    # the gate lists only what THIS session changed: art dirty before the session, or before a repo was first used in it,
+    # is not this session's, but art written afterwards (or a baseline file changed again) is
+    d = mkrepo(art=True, prod=True)
+    write(d, "art/theirs.fbx", "someone else's work")
+    hook("start", d, session="own")
+    rc0, out0, _ = hook("gate", d, session="own")
+    report(rc0 == 0 and out0.strip() == "", "gate: art that was already dirty when the session started is not listed")
+    write(d, "art/mine.fbx", "made this session")
+    rc1, out1, _ = hook("gate", d, session="own")
+    report("art/mine.fbx" in out1 and "art/theirs.fbx" not in out1, "gate: art made after the start is listed, the earlier dirty art still is not")
+    write(d, "art/theirs.fbx", "someone else changed it again")
+    rc2, out2, _ = hook("gate", d, session="own")
+    report("art/theirs.fbx" in out2, "gate: a file dirty at the start that changes again is listed")
+
+    home, other = mkrepo(art=True, prod=True), mkrepo(art=True, prod=True)
+    write(other, "art/theirs.fbx", "dirty before this session touched the repo")
+    hook("start", home, session="two")
+    hook("pre", home, {"tool_name": "Bash", "tool_input": {"command": 'git -C "%s" status' % other}}, session="two")
+    rc3, out3, _ = hook("gate", home, session="two")
+    report("theirs.fbx" not in out3, "gate: a repo first used mid-session is baselined, its earlier dirty art is not listed")
+    write(other, "art/mine.fbx", "made after the baseline")
+    rc4, out4, _ = hook("gate", home, session="two")
+    report("art/mine.fbx" in out4 and "theirs.fbx" not in out4, "gate: art made in that repo afterwards is listed")
 finally:
     for t in TMP:
         shutil.rmtree(t, ignore_errors=True)
