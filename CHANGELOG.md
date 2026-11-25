@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.2 - 2026-11-25
+
+Art is now tied to the session that made it. Working on a castle no longer gets the loot session's models listed,
+blocked on, or undone, even when both sessions use one repo.
+
+- **Each session records the files it made.** The ledger has a `mine` list: the PreToolUse hook adds the file of
+  every Write or Edit, and the PostToolUse hook adds every file a Bash command changed.
+- **Another session's files are left out.** The Stop gate (`evaluate`) and the undo step after a Bash call skip
+  any file another session in the repo claimed and this one did not. A file both sessions wrote stays in both.
+- **A human grant by one session is not "forged" in another.** The approval check now accepts a grant recorded in
+  any session's ledger of the repo, so a second session no longer undoes the first one's approval.
+- **A build count is only this session's to commit.** The "commit your `.builds` file" block applies only to
+  approvals this session actually built under.
+- Known limit: two sessions whose Bash commands run in the same second can both claim a file the other made.
+  Four new checks in `verify.py` (122 in all) cover two sessions in one repo.
+
 ## 0.11.1 - 2026-11-25
 
 From PlunderSpell, where the Stop gate listed about 60 art files (controllers, clip `.meta` files, models) that the

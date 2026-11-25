@@ -293,6 +293,8 @@ def event_pre():
         return 0
     if _protected(cfg, rel):
         return deny("%s is changed only by the human (approvals come from AskUserQuestion or approve.py grant)." % rel)
+    artlib.claim(led, [rel])   # this session's file from now on: other sessions' gates leave it alone
+    artlib.save_ledger(path, led)
     if artlib.unattended(root) or not artlib.is_production(rel, cfg):
         return 0
     ok, why = artlib.ready(root, artlib.covering(rel, artlib.load_approvals(root, cfg, led)), led)
@@ -426,10 +428,11 @@ def after_repo(root, gitdir, p):
         if f.endswith(".json") and not artlib.human_granted(root, led, rel):
             undone.append((rel, quarantine(root, gitdir, led["start"], rel, stamp), "no human grant wrote it"))
     t0 = led.get("t0") or 0
+    foreign, _bad = artlib.foreign_claims(gitdir, p.get("session_id"), led)
     outputs = {}
     for rel, h in ({} if artlib.unattended(root) else artlib.changed_art(root, cfg)).items():
-        if led["known"].get(rel) == h or os.path.getmtime(os.path.join(root, rel)) < t0 - 1:
-            continue  # unchanged since accepted, or changed outside this call (the person's own edit)
+        if led["known"].get(rel) == h or os.path.getmtime(os.path.join(root, rel)) < t0 - 1 or rel in foreign:
+            continue  # unchanged since accepted, changed outside this call, or another session's art
         good = [(rec, it) for rec, it, pr in artlib.covering(rel, approvals) if not pr]
         if good:
             led["known"][rel] = h
@@ -442,6 +445,7 @@ def after_repo(root, gitdir, p):
         for rec, it, rel in outputs.values():  # a tool missing from producer_commands still spends the budget
             artlib.charge(led, rec, it, "a command that changed %s" % rel)
     led["counted"] = False
+    artlib.claim_changed(root, gitdir, p.get("session_id"), led)
     cmd = led.get("check_cmd") or ""
     if cmd:
         led["check_cmd"] = ""

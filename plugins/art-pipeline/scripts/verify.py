@@ -691,6 +691,29 @@ try:
     report(out.strip() == "" and "deny" in out2,
            "pre: git add of a build tool is not a build; running it still is")
 
+    # two sessions in one repo: each one's gate speaks only about the art that session made
+    d = mkrepo()
+    hook("start", d, session="castle"); hook("start", d, session="loot")
+    pre(d, "Write", {"file_path": os.path.join(d, "art/castle.fbx")}, session="castle")
+    write(d, "art/castle.fbx", "castle")
+    bash(d, "echo tower > art/tower.fbx", session="castle")   # made by a command, not a Write
+    pre(d, "Write", {"file_path": os.path.join(d, "art/sword.fbx")}, session="loot")
+    write(d, "art/sword.fbx", "sword")
+    gc, gl = gate_as(d, "castle").get("reason", ""), gate_as(d, "loot").get("reason", "")
+    report("castle.fbx" in gc and "tower.fbx" in gc and "sword.fbx" not in gc,
+           "two sessions: the castle session's gate lists only the castle's art")
+    report("sword.fbx" in gl and "castle.fbx" not in gl and "tower.fbx" not in gl,
+           "two sessions: the loot session's gate lists only the loot art, never the castle's")
+    bash(d, "echo x", session="loot")
+    report(os.path.isfile(os.path.join(d, "art/castle.fbx")) and os.path.isfile(os.path.join(d, "art/tower.fbx")),
+           "two sessions: a command in one session does not undo the other session's art")
+    # an approval one session's human grant wrote is not "forged" in the other session
+    d = mkrepo(art=False, prod=True); hook("start", d, session="a1"); hook("start", d, session="b1")
+    spec(d); check(d); ask(d, session="a1")
+    rep = after(d, session="b1")
+    report(os.path.isfile(os.path.join(d, "docs/art/approvals/powder.json")) and "no human grant" not in json.dumps(rep),
+           "two sessions: another session's human-granted approval is not undone or called forged")
+
     rc, out, _ = run([sys.executable, APPROVE, "status"], cwd=mkrepo(art=False, prod=True))
     report(rc == 0 and "ledger:" in out, "approve.py status runs in a repo with no specs")
 

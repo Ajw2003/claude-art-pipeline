@@ -237,7 +237,50 @@ def new_ledger(start, known=None):
     t0: when the running Bash call started; counted: whether pre already charged it to a budget."""
     return {"start": start, "seen": [], "blocks": {}, "granted": [], "iter": {},
             "known": known or {}, "baseline": dict(known or {}), "t0": 0, "counted": False, "charges": {}, "notes": [],
-            "checks": {}, "check_cmd": ""}
+            "checks": {}, "check_cmd": "", "mine": []}
+
+
+def claim(led, rels):
+    """Records the files this session wrote, so another session's gate leaves them alone."""
+    mine = led.setdefault("mine", [])
+    mine += [r for r in rels if r not in mine]
+
+
+def foreign_claims(gitdir, session_id, led):
+    """(files another session in this repo claimed and this one did not, unreadable ledger notes).
+    A file both sessions wrote stays this session's."""
+    mine = set(led.get("mine") or [])
+    own = os.path.normcase(ledger_path(gitdir, session_id))
+    theirs, bad = set(), []
+    d = os.path.join(gitdir, "art-pipeline")
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        p = os.path.join(d, f)
+        if not f.endswith(".json") or not os.path.isfile(p) or os.path.normcase(p) == own:
+            continue
+        try:
+            with open(p, "r", encoding="utf-8") as fh:
+                theirs.update(json.load(fh).get("mine") or [])
+        except (OSError, ValueError, AttributeError) as exc:
+            bad.append("session ledger %s unreadable, its files are not excluded (%s)" % (f, exc))
+    return theirs - mine, bad
+
+
+def claim_changed(root, gitdir, session_id, led):
+    """After a Bash call: claims every file the call changed (mtime since it started) that no other
+    session has claimed. shortcut: two sessions writing within the same call window are not told apart,
+    upgrade to per-call file snapshots if that happens."""
+    t0 = led.get("t0") or 0
+    if not t0:
+        return
+    foreign, _bad = foreign_claims(gitdir, session_id, led)
+    base = led.get("baseline") or {}
+    new = []
+    for n in changed_files(root, led["start"]):
+        a = os.path.join(root, n)
+        if n in foreign or not os.path.isfile(a) or os.path.getmtime(a) < t0 - 1 or base.get(n) == sha(a):
+            continue
+        new.append(n)
+    claim(led, new)
 
 
 def changed_art(root, cfg):
@@ -469,8 +512,10 @@ def evaluate(root, gitdir, session_id):
     # `baseline` is only what was dirty at the start; `known` also holds art built under an approval, which must
     # be listed again if that approval is later voided.
     base = led.get("baseline") or {}
-    names = [n for n in changed_files(root, led["start"])
-             if not (n in base and os.path.isfile(os.path.join(root, n)) and sha(os.path.join(root, n)) == base[n])]
+    foreign, fbad = foreign_claims(gitdir, session_id, led)   # another session's art is that session's to review
+    bad = bad + fbad
+    names = [n for n in changed_files(root, led["start"]) if n not in foreign
+             and not (n in base and os.path.isfile(os.path.join(root, n)) and sha(os.path.join(root, n)) == base[n])]
     for m in names:
         if is_model(m, cfg) and os.path.isfile(os.path.join(root, m)):
             st, pr = check_model(root, m, recs, seen, cfg)
@@ -497,7 +542,8 @@ def evaluate(root, gitdir, session_id):
                 res.append((n, "unapproved" if unattended(root) else "fail", why))
     for sid, rec, pr in approvals:
         bp = builds_path(rec or {})
-        if bp and os.path.isfile(bp):
+        # only a build count this session spent is its to commit; another session's is that session's
+        if bp and os.path.isfile(bp) and any(k.startswith(rec["_sha"] + ":") for k in led["iter"]):
             rel = os.path.relpath(bp, root).replace(os.sep, "/")
             if git(root, "status", "--porcelain", "--", rel).strip():
                 res.append((rel, "fail", ["the build count must survive this session: commit it "
@@ -710,7 +756,18 @@ def human_granted(root, led, rel):
     """True when the approval file at rel was written by a human grant: recorded this session, or
     committed unchanged before the session started."""
     h = sha(os.path.join(root, rel))
-    return h in led["granted"] or _committed_at(root, led["start"], rel) == h
+    if h in led["granted"] or _committed_at(root, led["start"], rel) == h:
+        return True
+    info = repo_info(root)   # a grant another session of this repo recorded is just as human
+    d = os.path.join(info[1], "art-pipeline") if info else ""
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        try:
+            with open(os.path.join(d, f), "r", encoding="utf-8") as fh:
+                if h in (json.load(fh).get("granted") or []):
+                    return True
+        except (OSError, ValueError, AttributeError):
+            continue   # not a ledger (quarantine folder, stray file): it grants nothing
+    return False
 
 
 def load_approvals(root, cfg, led):
