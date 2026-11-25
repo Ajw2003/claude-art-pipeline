@@ -190,6 +190,18 @@ def register_repo(session_id, root):
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(roots + [root]))
+        _baseline_new_repo(session_id, root)
+
+
+def _baseline_new_repo(session_id, root):
+    """A repo first used mid-session has no ledger, so its dirty art would all read as this session's. Record
+    what is dirty now (this runs before the command that touches it), exactly as the SessionStart hook does."""
+    info = repo_info(root)
+    if not info:
+        return
+    path = ledger_path(info[1], session_id)
+    if not os.path.exists(path):
+        save_ledger(path, new_ledger(head_sha(info[0]), changed_art(info[0], load_config(info[0]))))
 
 
 def registered_repos(session_id):
@@ -451,7 +463,11 @@ def evaluate(root, gitdir, session_id):
     seen = {norm(e["path"]) for e in led["seen"] if isinstance(e, dict) and "path" in e}
     recs, bad = load_records(root, cfg)
     res = []
-    names = changed_files(root, led["start"])
+    # art already dirty when the session (or this repo's first use in it) began, and still byte-identical, is
+    # the person's or another session's work, not this session's: it is never listed or reviewed here.
+    known = led.get("known") or {}
+    names = [n for n in changed_files(root, led["start"])
+             if not (n in known and os.path.isfile(os.path.join(root, n)) and sha(os.path.join(root, n)) == known[n])]
     for m in names:
         if is_model(m, cfg) and os.path.isfile(os.path.join(root, m)):
             st, pr = check_model(root, m, recs, seen, cfg)
