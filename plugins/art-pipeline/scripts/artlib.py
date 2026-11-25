@@ -119,10 +119,29 @@ def tracked_has_art(root, cfg):
     return any(is_model(f, cfg) for f in out.splitlines())
 
 
-def changed_files(root, start):
+COMMIT_MARK = "\x01"   # starts the line that gives a commit's time in `git log` output; a file name never contains it
+SAME_SECOND = 2         # commit times are whole seconds: a commit this close to the start is treated as the session's
+
+
+def own_commit_files(root, start, began):
+    """The files changed by commits THIS session made since `start`. A commit counts when it is on the session's own line of
+    history (`--first-parent`, so a branch merged in is left out), is not a merge, and, when the start time is known, was made
+    after it. A fast-forward pull keeps its old commit times, so it is left out as well. `git diff start..HEAD` could not tell
+    these apart, so merging main into a branch made every art file on main look like this session's."""
+    out = git(root, "log", "--first-parent", "--no-merges", "--format=" + COMMIT_MARK + "%ct", "--name-only", "%s..HEAD" % start)
+    names, mine = set(), True
+    for line in out.splitlines():
+        if line.startswith(COMMIT_MARK):
+            mine = not began or int(line[1:] or 0) >= began - SAME_SECOND
+        elif line and mine:
+            names.add(line)
+    return names
+
+
+def changed_files(root, start, began=0):
     names = set()
     if start and start != head_sha(root):
-        names.update(git(root, "diff", "--name-only", "%s..HEAD" % start).splitlines())
+        names.update(own_commit_files(root, start, began))
     toks = git(root, "status", "--porcelain", "-uall", "-z").split("\0")
     i = 0
     while i < len(toks):
@@ -136,8 +155,8 @@ def changed_files(root, start):
     return sorted(names)
 
 
-def changed_models(root, start, cfg):
-    return [n for n in changed_files(root, start) if is_model(n, cfg) and os.path.isfile(os.path.join(root, n))]
+def changed_models(root, start, cfg, began=0):
+    return [n for n in changed_files(root, start, began) if is_model(n, cfg) and os.path.isfile(os.path.join(root, n))]
 
 
 def _path_match(rel, pat):
@@ -227,6 +246,7 @@ def load_ledger(path):
     if not isinstance(led, dict) or not isinstance(led.get("seen"), list):
         raise ValueError("ledger %s has the wrong shape" % path)
     led.setdefault("baseline", dict(led.get("known") or {}))   # a ledger from before `baseline` existed
+    led.setdefault("began", 0)   # a ledger from before `began` existed: 0 means "unknown", never "now"
     for k, v in new_ledger("").items():
         led.setdefault(k, v)
     return led
@@ -234,10 +254,11 @@ def load_ledger(path):
 
 def new_ledger(start, known=None):
     """known: art file -> sha already accepted (dirty at session start, or built under an approval);
-    t0: when the running Bash call started; counted: whether pre already charged it to a budget."""
+    t0: when the running Bash call started; counted: whether pre already charged it to a budget;
+    began: when the session began, so a commit made before it is known not to be the session's."""
     return {"start": start, "seen": [], "blocks": {}, "granted": [], "iter": {},
             "known": known or {}, "baseline": dict(known or {}), "t0": 0, "counted": False, "charges": {}, "notes": [],
-            "checks": {}, "check_cmd": "", "mine": []}
+            "checks": {}, "check_cmd": "", "mine": [], "began": time.time()}
 
 
 def claim(led, rels):
@@ -275,7 +296,7 @@ def claim_changed(root, gitdir, session_id, led):
     foreign, _bad = foreign_claims(gitdir, session_id, led)
     base = led.get("baseline") or {}
     new = []
-    for n in changed_files(root, led["start"]):
+    for n in changed_files(root, led["start"], led.get("began") or 0):
         a = os.path.join(root, n)
         if n in foreign or not os.path.isfile(a) or os.path.getmtime(a) < t0 - 1 or base.get(n) == sha(a):
             continue
@@ -514,7 +535,7 @@ def evaluate(root, gitdir, session_id):
     base = led.get("baseline") or {}
     foreign, fbad = foreign_claims(gitdir, session_id, led)   # another session's art is that session's to review
     bad = bad + fbad
-    names = [n for n in changed_files(root, led["start"]) if n not in foreign
+    names = [n for n in changed_files(root, led["start"], led.get("began") or 0) if n not in foreign
              and not (n in base and os.path.isfile(os.path.join(root, n)) and sha(os.path.join(root, n)) == base[n])]
     for m in names:
         if is_model(m, cfg) and os.path.isfile(os.path.join(root, m)):
