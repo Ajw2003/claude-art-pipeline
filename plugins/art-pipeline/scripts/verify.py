@@ -76,6 +76,8 @@ def run(args, payload="", env=None, cwd=None):
     e = dict(os.environ)
     e.pop("ART_PIPELINE", None)
     e["HOME"] = FAKE_HOME
+    e["USERPROFILE"] = FAKE_HOME   # Windows expanduser("~") reads this, not HOME
+    e["CLAUDE_CONFIG_DIR"] = os.path.join(FAKE_HOME, ".claude")   # the real typed-mode file must not leak in
     e.update(env or {})
     p = subprocess.run(args, input=payload.encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=e, cwd=cwd)
     return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
@@ -252,7 +254,7 @@ try:
     d = dcrepo("echo ran > ran.txt"); write(d, "docs/scale.md", "x")
     rc, o = gate(d)
     report(o == {} and os.path.exists(os.path.join(d, "ran.txt")), "doc_check: configured check passes when docs changed (ran, silent)")
-    d = dcrepo("echo ROSTER-DRIFT; exit 3"); write(d, "docs/scale.md", "x")
+    d = dcrepo('"%s" -c "print(\'ROSTER-DRIFT\'); raise SystemExit(3)"' % sys.executable.replace("\\", "/")); write(d, "docs/scale.md", "x")
     rc, o = gate(d)
     report(o.get("decision") == "block" and "ROSTER-DRIFT" in o["reason"] and "exited 3" in o["reason"], "doc_check: failing check blocks with its output")
     d = dcrepo("echo ran > ran.txt exit 3"); write(d, "notes.txt", "x")
@@ -287,7 +289,11 @@ try:
         dec, why = pre(d, "Bash", {"command": cmd}, session, env)
         if dec == "deny":
             return dec, why, {}
-        subprocess.run(cmd, shell=True, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Claude Code runs Bash commands in a POSIX shell; cmd.exe would break mkdir -p and quoting, and on Windows
+        # python3 is often the Store stub, so it is swapped for the interpreter running this script.
+        sh = shutil.which("bash") or shutil.which("sh")
+        run_cmd = cmd.replace("python3", '"%s"' % sys.executable.replace("\\", "/"))
+        subprocess.run([sh, "-c", run_cmd] if sh else run_cmd, shell=not sh, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return dec, why, after(d, session, env)
 
     REF = "docs/art/reference/powder"
@@ -585,14 +591,15 @@ try:
         rc, out, _ = hook("pre", d, {"tool_name": tool, "tool_input": ti, "cwd": cwd})
         o = json.loads(out) if out.strip() else {}
         return (o.get("hookSpecificOutput") or {}).get("permissionDecision")
-    report(pre_from(elsewhere, "Bash", {"command": "cd %s && python render.py movie musketeer" % d}) == "deny"
-           and pre_from(elsewhere, "Bash", {"command": "python %s/render.py movie musketeer" % d}) == "deny"
-           and pre_from(elsewhere, "Bash", {"command": "git -C %s status" % d}) is None,
+    fd = d.replace("\\", "/")   # a POSIX shell eats backslashes, so commands name paths with forward slashes
+    report(pre_from(elsewhere, "Bash", {"command": "cd %s && python render.py movie musketeer" % fd}) == "deny"
+           and pre_from(elsewhere, "Bash", {"command": "python %s/render.py movie musketeer" % fd}) == "deny"
+           and pre_from(elsewhere, "Bash", {"command": "git -C %s status" % fd}) is None,
            "pre: a command run from outside the repo (cd into it, or an absolute path) is judged by that repo's rules")
     report(pre_from(elsewhere, "Write", {"file_path": os.path.join(d, "Assets/Other/x.anim")}) == "deny",
            "pre: a Write to an art file in another repo than the working directory is gated by that repo")
-    cmd = "cd %s && mkdir -p Assets/Audio && echo boom > Assets/Audio/sneak.wav" % d
-    subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    cmd = "cd %s && mkdir -p Assets/Audio && echo boom > Assets/Audio/sneak.wav" % fd
+    subprocess.run([shutil.which("bash") or "sh", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     rc, out, _ = hook("after", d, {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": elsewhere})
     o = json.loads(out) if out.strip() else {}
     report(o.get("decision") == "block" and not os.path.exists(os.path.join(d, "Assets/Audio/sneak.wav")),
