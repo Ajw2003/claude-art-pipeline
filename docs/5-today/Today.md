@@ -1,5 +1,9 @@
 # Today
 
+## 2026-11-25
+
+- Stop gate fix (0.11.1, PR #16 on `AjsAgent/gate-baseline-0.11.1`): the gate lists only art changed since the session began, a repo first used mid-session is baselined, and Windows paths in commands are found. `verify.py` was 15 failing on Windows from its own bugs (real home folder leaking in, `cmd.exe`, the `python3` Store stub); it is now 118 of 118 in my run. Not merged, and the installed copy still needs `claude plugin update` and a restart after the merge.
+
 ## 2026-11-24
 
 - Fetched the default branch (`AjsAgent/standalone`; this repo has no `main`). It now holds PR #7 and the first split-out skill, `frame-sheet-compare`.

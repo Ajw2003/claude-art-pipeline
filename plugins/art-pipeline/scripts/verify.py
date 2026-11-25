@@ -76,6 +76,8 @@ def run(args, payload="", env=None, cwd=None):
     e = dict(os.environ)
     e.pop("ART_PIPELINE", None)
     e["HOME"] = FAKE_HOME
+    e["USERPROFILE"] = FAKE_HOME   # Windows expanduser("~") reads this, not HOME
+    e["CLAUDE_CONFIG_DIR"] = os.path.join(FAKE_HOME, ".claude")   # the real typed-mode file must not leak in
     e.update(env or {})
     p = subprocess.run(args, input=payload.encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=e, cwd=cwd)
     return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
@@ -252,7 +254,7 @@ try:
     d = dcrepo("echo ran > ran.txt"); write(d, "docs/scale.md", "x")
     rc, o = gate(d)
     report(o == {} and os.path.exists(os.path.join(d, "ran.txt")), "doc_check: configured check passes when docs changed (ran, silent)")
-    d = dcrepo("echo ROSTER-DRIFT; exit 3"); write(d, "docs/scale.md", "x")
+    d = dcrepo('"%s" -c "print(\'ROSTER-DRIFT\'); raise SystemExit(3)"' % sys.executable.replace("\\", "/")); write(d, "docs/scale.md", "x")
     rc, o = gate(d)
     report(o.get("decision") == "block" and "ROSTER-DRIFT" in o["reason"] and "exited 3" in o["reason"], "doc_check: failing check blocks with its output")
     d = dcrepo("echo ran > ran.txt exit 3"); write(d, "notes.txt", "x")
@@ -287,7 +289,11 @@ try:
         dec, why = pre(d, "Bash", {"command": cmd}, session, env)
         if dec == "deny":
             return dec, why, {}
-        subprocess.run(cmd, shell=True, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Claude Code runs Bash commands in a POSIX shell; cmd.exe would break mkdir -p and quoting, and on Windows
+        # python3 is often the Store stub, so it is swapped for the interpreter running this script.
+        sh = shutil.which("bash") or shutil.which("sh")
+        run_cmd = cmd.replace("python3", '"%s"' % sys.executable.replace("\\", "/"))
+        subprocess.run([sh, "-c", run_cmd] if sh else run_cmd, shell=not sh, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return dec, why, after(d, session, env)
 
     REF = "docs/art/reference/powder"
@@ -585,14 +591,15 @@ try:
         rc, out, _ = hook("pre", d, {"tool_name": tool, "tool_input": ti, "cwd": cwd})
         o = json.loads(out) if out.strip() else {}
         return (o.get("hookSpecificOutput") or {}).get("permissionDecision")
-    report(pre_from(elsewhere, "Bash", {"command": "cd %s && python render.py movie musketeer" % d}) == "deny"
-           and pre_from(elsewhere, "Bash", {"command": "python %s/render.py movie musketeer" % d}) == "deny"
-           and pre_from(elsewhere, "Bash", {"command": "git -C %s status" % d}) is None,
+    fd = d.replace("\\", "/")   # a POSIX shell eats backslashes, so commands name paths with forward slashes
+    report(pre_from(elsewhere, "Bash", {"command": "cd %s && python render.py movie musketeer" % fd}) == "deny"
+           and pre_from(elsewhere, "Bash", {"command": "python %s/render.py movie musketeer" % fd}) == "deny"
+           and pre_from(elsewhere, "Bash", {"command": "git -C %s status" % fd}) is None,
            "pre: a command run from outside the repo (cd into it, or an absolute path) is judged by that repo's rules")
     report(pre_from(elsewhere, "Write", {"file_path": os.path.join(d, "Assets/Other/x.anim")}) == "deny",
            "pre: a Write to an art file in another repo than the working directory is gated by that repo")
-    cmd = "cd %s && mkdir -p Assets/Audio && echo boom > Assets/Audio/sneak.wav" % d
-    subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    cmd = "cd %s && mkdir -p Assets/Audio && echo boom > Assets/Audio/sneak.wav" % fd
+    subprocess.run([shutil.which("bash") or "sh", "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     rc, out, _ = hook("after", d, {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": elsewhere})
     o = json.loads(out) if out.strip() else {}
     report(o.get("decision") == "block" and not os.path.exists(os.path.join(d, "Assets/Audio/sneak.wav")),
@@ -900,6 +907,29 @@ try:
                       "--reviewer", "  ", "--verdict", "pass", "--seen", SEEN_TXT], cwd=d)
     report(rc != 0 and "--reviewer" in err and not glob.glob(os.path.join(d, "**", "*.review.json"), recursive=True),
            "an empty --reviewer name is rejected and writes no record")
+    # the gate lists only what THIS session changed: art dirty before the session, or before a repo was first used in it,
+    # is not this session's, but art written afterwards (or a baseline file changed again) is
+    d = mkrepo(art=True, prod=True)
+    write(d, "art/theirs.fbx", "someone else's work")
+    hook("start", d, session="own")
+    rc0, out0, _ = hook("gate", d, session="own")
+    report(rc0 == 0 and out0.strip() == "", "gate: art that was already dirty when the session started is not listed")
+    write(d, "art/mine.fbx", "made this session")
+    rc1, out1, _ = hook("gate", d, session="own")
+    report("art/mine.fbx" in out1 and "art/theirs.fbx" not in out1, "gate: art made after the start is listed, the earlier dirty art still is not")
+    write(d, "art/theirs.fbx", "someone else changed it again")
+    rc2, out2, _ = hook("gate", d, session="own")
+    report("art/theirs.fbx" in out2, "gate: a file dirty at the start that changes again is listed")
+
+    home, other = mkrepo(art=True, prod=True), mkrepo(art=True, prod=True)
+    write(other, "art/theirs.fbx", "dirty before this session touched the repo")
+    hook("start", home, session="two")
+    hook("pre", home, {"tool_name": "Bash", "tool_input": {"command": 'git -C "%s" status' % other}}, session="two")
+    rc3, out3, _ = hook("gate", home, session="two")
+    report("theirs.fbx" not in out3, "gate: a repo first used mid-session is baselined, its earlier dirty art is not listed")
+    write(other, "art/mine.fbx", "made after the baseline")
+    rc4, out4, _ = hook("gate", home, session="two")
+    report("art/mine.fbx" in out4 and "theirs.fbx" not in out4, "gate: art made in that repo afterwards is listed")
 finally:
     for t in TMP:
         shutil.rmtree(t, ignore_errors=True)

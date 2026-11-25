@@ -1,7 +1,7 @@
 {
   "name": "art-pipeline",
   "description": "Make game art by code - models, animation, VFX, SFX, music, textures, sprites, UI art. Nothing is made until a human approves a spec with real-world reference, each approval has a build budget, and a model is not done until it is looked at beside its concept. Hooks enforce all three.",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "author": {
     "name": "aj",
     "email": "aydenjwilkins@gmail.com"

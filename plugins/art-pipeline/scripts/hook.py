@@ -190,7 +190,13 @@ def _sheet_ok(root, cfg, sid):
 
 CD = re.compile(r"(?:^|[;&|(\s])(?:cd|pushd)\s+([\"']?)([^\s;&|)\"']+)\1")
 GIT_C = re.compile(r"\bgit\s+-C\s+([\"']?)([^\s;&|)\"']+)\1")
-ABS = re.compile(r"(?<![\w.:/])(/[^\s;&|)\"'<>]+)")
+ABS = re.compile(r"(?<![\w.:/])((?:[A-Za-z]:[\\/]|/)[^\s;&|)\"'<>]+)")   # /posix/path or C:/win/path
+GITBASH_DRIVE = re.compile(r"^/([A-Za-z])(?=/|$)")
+
+
+def _native(path):
+    """Git Bash writes C:\\x as /c/x; on Windows that must be turned back into a drive path to be found."""
+    return GITBASH_DRIVE.sub(lambda m: m.group(1).upper() + ":", path) if os.name == "nt" else path
 
 
 def _repo_of(path):
@@ -210,8 +216,8 @@ def bash_repos(p):
     cmd = (p.get("tool_input") or {}).get("command") or ""
     base = where(p)
     dirs = [base]
-    dirs += [os.path.join(base, os.path.expanduser(m.group(2))) for rx in (CD, GIT_C) for m in rx.finditer(cmd)]
-    dirs += [m.group(1) for m in ABS.finditer(cmd)]
+    dirs += [os.path.join(base, os.path.expanduser(_native(m.group(2)))) for rx in (CD, GIT_C) for m in rx.finditer(cmd)]
+    dirs += [_native(m.group(1)) for m in ABS.finditer(cmd)]
     out, seen = [], set()
     for d in dirs:
         d = os.path.normpath(d)
