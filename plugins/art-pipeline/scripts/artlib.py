@@ -226,6 +226,7 @@ def load_ledger(path):
         led = json.load(fh)
     if not isinstance(led, dict) or not isinstance(led.get("seen"), list):
         raise ValueError("ledger %s has the wrong shape" % path)
+    led.setdefault("baseline", dict(led.get("known") or {}))   # a ledger from before `baseline` existed
     for k, v in new_ledger("").items():
         led.setdefault(k, v)
     return led
@@ -235,7 +236,7 @@ def new_ledger(start, known=None):
     """known: art file -> sha already accepted (dirty at session start, or built under an approval);
     t0: when the running Bash call started; counted: whether pre already charged it to a budget."""
     return {"start": start, "seen": [], "blocks": {}, "granted": [], "iter": {},
-            "known": known or {}, "t0": 0, "counted": False, "charges": {}, "notes": [],
+            "known": known or {}, "baseline": dict(known or {}), "t0": 0, "counted": False, "charges": {}, "notes": [],
             "checks": {}, "check_cmd": ""}
 
 
@@ -465,9 +466,11 @@ def evaluate(root, gitdir, session_id):
     res = []
     # art already dirty when the session (or this repo's first use in it) began, and still byte-identical, is
     # the person's or another session's work, not this session's: it is never listed or reviewed here.
-    known = led.get("known") or {}
+    # `baseline` is only what was dirty at the start; `known` also holds art built under an approval, which must
+    # be listed again if that approval is later voided.
+    base = led.get("baseline") or {}
     names = [n for n in changed_files(root, led["start"])
-             if not (n in known and os.path.isfile(os.path.join(root, n)) and sha(os.path.join(root, n)) == known[n])]
+             if not (n in base and os.path.isfile(os.path.join(root, n)) and sha(os.path.join(root, n)) == base[n])]
     for m in names:
         if is_model(m, cfg) and os.path.isfile(os.path.join(root, m)):
             st, pr = check_model(root, m, recs, seen, cfg)

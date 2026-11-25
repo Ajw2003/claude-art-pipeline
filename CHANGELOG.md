@@ -11,6 +11,16 @@ session never touched and blocked the stop on them, over and over.
 - **A repo first used mid-session gets a baseline.** Running a command in, or editing a file of, another repo
   (another checkout or worktree) used to give it no ledger, so all of its dirty art read as this session's. The
   PreToolUse hook now records that repo's dirty art when it first registers it, before the command runs.
+- **`baseline` is kept apart from `known`.** `known` also holds art built under an approval, so using it would have
+  hidden that art after the approval was voided (check 51). The ledger now has a `baseline` list that is only what
+  was dirty at the start; ledgers from before it fall back to `known`.
+- **Windows paths in a command are found.** The hook that works out which repo a command acts in only recognised
+  paths starting with `/`, so `python C:/repo/render.py` and Git Bash's `/c/repo/...` were judged by the wrong
+  repo's rules.
+- **`verify.py` passes on Windows (118 of 118).** It now sets `USERPROFILE` and `CLAUDE_CONFIG_DIR` as well as
+  `HOME`, so the real home folder's "unattended on" switch and session registry no longer leak into the tests;
+  runs its sample commands in bash with the real interpreter (`cmd.exe` broke `mkdir -p`, and `python3` is a Store
+  stub); and names paths with forward slashes. Before this, 15 checks failed on a Windows machine.
 - Not fixed: a baseline file that Unity or another tool rewrites mid-session counts as changed again and is listed.
 - `verify.py`: five new checks.
 
